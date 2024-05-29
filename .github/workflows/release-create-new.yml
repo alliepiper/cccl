@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Release: Begin New Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_version:
+        description: "Semantic version string (eg. '2.3.0')"
+        type: string
+        required: true
+      branch_point:
+        description: "If the release branch doesn't exist yet, it will be branched from this ref."
+        type: string
+        required: true
+        default: 'main'
+      branch_prefix:
+        description: 'The prefix for the new branch. Full branch name will be "${branch_prefix}/${major}.${minor}.x".'
+        type: string
+        required: true
+        default: 'branch'
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare environment
+        id: prepare-env
+        run: |
+          full_version=${{ inputs.new_version }}
+          major_version=$(echo ${full_version} | cut -d. -f1)
+          minor_version=$(echo ${full_version} | cut -d. -f2)
+          patch_version=$(echo ${full_version} | cut -d. -f3)
+          branch_name="${{inputs.branch_prefix}}/${major_version}.${minor_version}.x"
+
+          echo "FULL_VERSION=${full_version}"   | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          echo "MAJOR_VERSION=${major_version}" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          echo "MINOR_VERSION=${minor_version}" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          echo "PATCH_VERSION=${patch_version}" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          echo "BRANCH_NAME=${branch_name}"     | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch_point }}
+
+      - name: Create release branch
+        id: create_branch
+        run: |
+          # Create the release branch if it doesn't already exist:
+          if git ls-remote --exit-code origin $BRANCH_NAME; then
+            git checkout $BRANCH_NAME
+          else
+            git checkout -b $BRANCH_NAME
+          fi
+
+      - name: Update version numbers
+        run: |
+          ./ci/update-version.sh ${MAJOR_VERSION} ${MINOR_VERSION} ${PATCH_VERSION}
+          git diff
+          git add .
+          git commit -m "Bump version to ${FULL_VERSION}."
+
+      - name: Update upstream release branch
+        run: |
+          git push origin $BRANCH_NAME:$BRANCH_NAME
+
+      - name: Create a pull request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: ${{ steps.prepare-env.outputs.BRANCH_NAME }}
+          title: 'Merge release ${{ steps.prepare-env.outputs.FULL_VERSION }} into main'
+          body: 'This PR updates the version numbers to ${{ steps.prepare-env.outputs.FULL_VERSION }}.'
+          base: main

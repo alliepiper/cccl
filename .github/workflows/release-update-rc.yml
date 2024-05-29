@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Release: Tag New Release Candidate"
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_version:
+        type: string
+        description: "Semantic version string (eg. '2.3.0')"
+        required: true
+      ref:
+        type: string
+        description: "The SHA to use for testing/tagging."
+        required: true
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.prepare.outputs.tag_name }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+      - name: Prepare environment
+        id: prepare
+        run: |
+          full_version=${{ inputs.new_version }}
+          major_version=$(echo ${full_version} | cut -d. -f1)
+          minor_version=$(echo ${full_version} | cut -d. -f2)
+          patch_version=$(echo ${full_version} | cut -d. -f3)
+          branch_name="branch/${major_version}.${minor_version}.x"
+          ref=${{ inputs.ref }}
+
+          # Ensure the release branch exists at branch/{major}.{minor}.x.
+          if git ls-remote --exit-code origin $BRANCH_NAME; then
+            git checkout $BRANCH_NAME
+          else
+            echo "::error::Branch $BRANCH_NAME does not exist."
+            exit 1
+          fi
+
+          # Ensure that the ref is a valid commit on the release branch.
+          if ! git merge-base --is-ancestor $ref HEAD; then
+            echo "::error::Ref $ref is not a valid commit on branch $BRANCH_NAME."
+            exit 1
+          fi
+
+          # Ensure that there is no final release tag (vX.Y.Z) for the requested version.
+          full_version_escaped=$(echo "${full_version}" | sed 's/\./\\./g')
+          if git ls-remote --tags origin | grep -q "^v${full_version_escaped}$"; then
+            echo "::error::Tag v${full_version} already exists."
+            exit 1
+            fi
+          fi
+
+          # Look for previous release candidates:
+          declare -i last_rc=
+          for tag in $(git ls-remote --tags origin; do
+              if [[ $tag =~ v${full_version_escaped}-rc([0-9]+)$ ]]; then
+                rc=${BASH_REMATCH[1]}
+                if (( rc > last_rc )); then
+                  last_rc=rc
+                fi
+              fi
+          done
+
+          # Determine tag name
+          if [[ -z $last_rc ]]; then
+            next_rc=0
+          else
+            next_rc=$((last_rc + 1))
+
+            # Ensure that the ref is newer or equal to the last RC.
+            if git merge-base --is-ancestor ${ref} origin/v${full_version}-rc${last_rc}; then
+              echo "::error::Ref $REF is older than the last release candidate, v${full_version}-rc${last_rc}."
+              exit 1
+            fi
+          fi
+          tag_name="v${full_version}-rc${next_rc}"
+
+          echo "TAG_NAME=${tag_name}" | tee -a $GITHUB_OUTPUT
+
+  build-workflow:
+    name: Build testing workflow
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      workflow: ${{ steps.build-workflow.outputs.workflow }}
+      workflow_keys: ${{ steps.build-workflow.outputs.workflow_keys }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Build workflow
+        id: build-workflow
+        uses: ./.github/actions/workflow-build
+        with:
+          workflows: release_candidate
+          ref: ${{ inputs.ref }}
+
+  run-workflow:
+    name: ${{ matrix.name }}
+    needs: build-workflow
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ${{ fromJSON(needs.build-workflow.outputs.workflow_keys) }}
+    uses: ./.github/workflows/workflow-dispatch.yml
+    with:
+      name: ${{ matrix.name }}
+      jobs: ${{ toJSON(fromJSON(needs.build-workflow.outputs.workflow)[matrix.name]) }}
+      ref: ${{ inputs.ref }}
+
+  # This job acts as a sentry and will fail if any leaf job in the workflow tree fails, as
+  # run-workflow always succeeds. Use this job when checking for successful matrix workflow job completion.
+  verify-workflow:
+    name: Verify and summarize workflow results
+    if: ${{ always() && !cancelled() }}
+    needs:
+      - build-workflow
+      - run-workflow
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Check workflow success
+        id: check-workflow
+        uses: ./.github/actions/workflow-results
+        with:
+          ref: ${{ inputs.ref }}
+
+  tag:
+    runs-on: ubuntu-latest
+    needs: [prepare, verify-workflow]
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Tag the release candidate
+        run: |
+          git tag ${{ needs.prepare.outputs.tag_name }} ${{ inputs.ref }}
+          git push origin ${{ needs.prepare.outputs.tag_name }}
+          echo "Tagged release candidate ${{ needs.prepare.outputs.tag_name }}."
+          # TODO Notify team of results.
