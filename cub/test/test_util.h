@@ -54,10 +54,10 @@
 #include <string>
 #include <vector>
 
-#include "c2h/extended_types.cuh"
 #include "mersenne.h"
 #include "test_util_vec.h"
 #include "test_warning_suppression.cuh"
+#include <c2h/extended_types.cuh>
 #include <nv/target>
 
 /******************************************************************************
