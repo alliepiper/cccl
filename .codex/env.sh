@@ -132,7 +132,7 @@ case "$(dpkg --print-architecture)" in
   amd64) REPO_ARCH="x86_64" ;;
   arm64) REPO_ARCH="arm64" ;;
   *) echo "Unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;;
-endcase
+esac
 REPO_BASE="https://developer.download.nvidia.com/compute/cuda/repos/${CUDA_REPO_TAG}/${REPO_ARCH}"
 KEY_DEB="cuda-keyring_1.1-1_all.deb"
 if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
