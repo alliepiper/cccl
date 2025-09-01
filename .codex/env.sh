@@ -156,3 +156,5 @@ $SUDO apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
 
 pip install "${PIP_PACKAGES[@]}"
 pre-commit install --install-hooks
+
+nvidia-smi || :
