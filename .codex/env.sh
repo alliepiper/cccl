@@ -10,7 +10,12 @@ set -euo pipefail
 : "${CTK_DEFAULT_VERSION:=12.9}"
 
 # CTK versions to install
-: "${CTK_INSTALL_VERSIONS:=("$CTK_DEFAULT_VERSION")}"
+# Note: Use proper array defaulting; the prior form produced
+# a literal string like ("12.9"), which led to package names
+# such as cuda-nvcc-(12-9).
+if [[ -z "${CTK_INSTALL_VERSIONS+x}" ]]; then
+  CTK_INSTALL_VERSIONS=("$CTK_DEFAULT_VERSION")
+fi
 
 # CUDA packages (without version suffix)
 CUDA_PACKAGES=(
@@ -63,6 +68,7 @@ install_ctk() {
   for pkg in "${CUDA_PACKAGES[@]}"; do
     $SUDO apt-get install -y --no-install-recommends "${pkg}-${suffix}"
   done
+  select_ctk "$ver"
 }
 
 select_ctk() {
