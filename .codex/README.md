@@ -1,6 +1,9 @@
 Add this to your Codex environment script:
 
 ```bash
+# Optional: override the installed CTK. Use 'latest' to use newest available.
+# export CTK_DEFAULT_VERSION=12.9
+
 mkdir .codex
 readonly url_base="https://raw.githubusercontent.com/alliepiper/cccl/codex_util"
 curl -L -o .codex/env.sh "${url_base}/.codex/env.sh"

@@ -6,11 +6,11 @@ set -euo pipefail
 # Configuration section
 # -----------------------------
 
-# CTK versions to install
-CTK_VERSIONS=("12.9")
-
 # CTK version to activate after installation
-CTK_DEFAULT_VERSION="12.9"
+: "${CTK_DEFAULT_VERSION:=12.9}"
+
+# CTK versions to install
+: "${CTK_INSTALL_VERSIONS:=("$CTK_DEFAULT_VERSION")}"
 
 # CUDA packages (without version suffix)
 CUDA_PACKAGES=(
@@ -146,7 +146,7 @@ $SUDO apt-get update -y
 # -----------------------------
 # Installation
 # -----------------------------
-for ver in "${CTK_VERSIONS[@]}"; do
+for ver in "${CTK_INSTALL_VERSIONS[@]}"; do
   install_ctk "$ver"
 done
 
@@ -156,5 +156,3 @@ $SUDO apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
 
 pip install "${PIP_PACKAGES[@]}"
 pre-commit install --install-hooks
-
-nvidia-smi || :
