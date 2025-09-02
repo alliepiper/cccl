@@ -71,12 +71,14 @@ jobs:
       - name: Export workflow flags
         id: export-flags
         run: |
-          echo "ci_enabled=${{ env.ci_enabled }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "matrix_enabled=${{ !contains(github.event.head_commit.message, '[skip-matrix]') }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "vdc_enabled=${{ !contains(github.event.head_commit.message, '[skip-vdc]') }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "docs_enabled=${{ !contains(github.event.head_commit.message, '[skip-docs]') }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "rapids_enabled=${{ contains(github.event.head_commit.message, '[test-rapids]') }}" | tee -a "${GITHUB_OUTPUT}"
-          echo "matx_enabled=${{ !contains(github.event.head_commit.message, '[skip-matx]') }}" | tee -a "${GITHUB_OUTPUT}"
+          output() { echo "$1=$2" | tee -a "${GITHUB_OUTPUT}"; }
+
+          output ci_enabled     "${{ env.ci_enabled }}"
+          output matrix_enabled "${{ !contains(github.event.head_commit.message, '[skip-matrix]') }}"
+          output vdc_enabled    "${{ !contains(github.event.head_commit.message, '[skip-vdc]') }}"
+          output docs_enabled   "${{ !contains(github.event.head_commit.message, '[skip-docs]') }}"
+          output rapids_enabled "${{ contains(github.event.head_commit.message, '[test-rapids]') }}"
+          output matx_enabled   "${{ !contains(github.event.head_commit.message, '[skip-matx]') }}"
       - name: Build workflow
         # Skip building the matrix when disabled, but still gather PR info for downstream jobs
         if: steps.export-flags.outputs.matrix_enabled == 'true'
@@ -91,9 +93,7 @@ jobs:
               ''
             ) }}
           inspect_changes_base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
-          workflows: >-
-            pull_request
-            ${{ contains(github.event.head_commit.message, '[workflow:nightly]') && 'nightly' || '' }}
+          workflows: pull_request
 
   dispatch-groups-linux-two-stage:
     name: ${{ matrix.name }}
@@ -209,7 +209,11 @@ jobs:
 
   verify-devcontainers:
     name: Verify Dev Containers
-    if: needs.build-workflow.outputs.ci_enabled == 'true' && needs.build-workflow.outputs.vdc_enabled == 'true'
+    if: >-
+      ${{
+        needs.build-workflow.outputs.ci_enabled == 'true' &&
+        needs.build-workflow.outputs.vdc_enabled   == 'true'
+      }}
     needs: build-workflow
     permissions:
       id-token: write
@@ -220,7 +224,11 @@ jobs:
 
   verify-docs:
     name: Build and Verify Docs
-    if: needs.build-workflow.outputs.ci_enabled == 'true' && needs.build-workflow.outputs.docs_enabled == 'true'
+    if: >-
+      ${{
+        needs.build-workflow.outputs.ci_enabled  == 'true' &&
+        needs.build-workflow.outputs.docs_enabled == 'true'
+      }}
     permissions:
       contents: read
     runs-on: linux-amd64-cpu32
@@ -237,7 +245,11 @@ jobs:
 
   build-rapids:
     name: Build RAPIDS (optional)
-    if: needs.build-workflow.outputs.ci_enabled == 'true' && needs.build-workflow.outputs.rapids_enabled == 'true'
+    if: >-
+      ${{
+        needs.build-workflow.outputs.ci_enabled   == 'true' &&
+        needs.build-workflow.outputs.rapids_enabled == 'true'
+      }}
     secrets: inherit
     permissions:
       actions: read
@@ -249,7 +261,11 @@ jobs:
 
   build-matx:
     name: Build MatX (optional)
-    if: needs.build-workflow.outputs.ci_enabled == 'true' && needs.build-workflow.outputs.matx_enabled == 'true'
+    if: >-
+      ${{
+        needs.build-workflow.outputs.ci_enabled  == 'true' &&
+        needs.build-workflow.outputs.matx_enabled == 'true'
+      }}
     secrets: inherit
     permissions:
       id-token: write
@@ -263,7 +279,11 @@ jobs:
     # !! Need to use always() instead of !cancelled() because skipped jobs count as success
     # !! for Github branch protection checks. Yes, really: by default, branch protections
     # !! can be bypassed by cancelling CI. See NVIDIA/cccl#605.
-    if: env.ci_enabled == 'true' && always()
+    if: >-
+      ${{
+        env.ci_enabled == 'true' &&
+        always()
+      }}
     needs:
       - verify-workflow
       - verify-devcontainers
