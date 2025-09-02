@@ -49,7 +49,6 @@ runs:
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
     - name: Get AWS credentials for sccache bucket
-      if: github.repository == 'NVIDIA/cccl'
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA

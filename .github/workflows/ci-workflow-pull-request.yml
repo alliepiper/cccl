@@ -26,11 +26,6 @@ env:
       (github.repository == 'NVIDIA/cccl' && github.event_name == 'push') ||
       (github.repository != 'NVIDIA/cccl' && github.event_name == 'pull_request')
     }}
-  matrix_enabled: ${{ !contains(github.event.head_commit.message, '[skip-matrix]') }}
-  vdc_enabled: ${{ !contains(github.event.head_commit.message, '[skip-vdc]') }}
-  docs_enabled: ${{ !contains(github.event.head_commit.message, '[skip-docs]') }}
-  rapids_enabled: ${{ contains(github.event.head_commit.message, '[test-rapids]') }}
-  matx_enabled: ${{ !contains(github.event.head_commit.message, '[skip-matx]') }}
 
 on:
   push:
@@ -50,16 +45,16 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      outputs:
-        base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
-        pr_number: ${{ steps.export-pr-info.outputs.pr_number }}
-        workflow: ${{ steps.build-workflow.outputs.workflow }}
-        ci_enabled: ${{ steps.export-flags.outputs.ci_enabled }}
-        matrix_enabled: ${{ steps.export-flags.outputs.matrix_enabled }}
-        vdc_enabled: ${{ steps.export-flags.outputs.vdc_enabled }}
-        docs_enabled: ${{ steps.export-flags.outputs.docs_enabled }}
-        rapids_enabled: ${{ steps.export-flags.outputs.rapids_enabled }}
-        matx_enabled: ${{ steps.export-flags.outputs.matx_enabled }}
+    outputs:
+      base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
+      pr_number: ${{ steps.export-pr-info.outputs.pr_number }}
+      workflow: ${{ steps.build-workflow.outputs.workflow }}
+      ci_enabled: ${{ steps.export-flags.outputs.ci_enabled }}
+      matrix_enabled: ${{ steps.export-flags.outputs.matrix_enabled }}
+      vdc_enabled: ${{ steps.export-flags.outputs.vdc_enabled }}
+      docs_enabled: ${{ steps.export-flags.outputs.docs_enabled }}
+      rapids_enabled: ${{ steps.export-flags.outputs.rapids_enabled }}
+      matx_enabled: ${{ steps.export-flags.outputs.matx_enabled }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -76,22 +71,17 @@ jobs:
       - name: Export workflow flags
         id: export-flags
         run: |
-          echo "ci_enabled=${ci_enabled}" | tee -a "${GITHUB_OUTPUT}"
-          echo "matrix_enabled=${matrix_enabled}" | tee -a "${GITHUB_OUTPUT}"
-          echo "vdc_enabled=${vdc_enabled}" | tee -a "${GITHUB_OUTPUT}"
-          echo "docs_enabled=${docs_enabled}" | tee -a "${GITHUB_OUTPUT}"
-          echo "rapids_enabled=${rapids_enabled}" | tee -a "${GITHUB_OUTPUT}"
-          echo "matx_enabled=${matx_enabled}" | tee -a "${GITHUB_OUTPUT}"
-        - name: Build workflow
-          # Skip building the matrix when disabled, but still gather PR info for downstream jobs
-          if: env.matrix_enabled == 'true'
-          id: build-workflow
-          uses: ./.github/actions/workflow-build
-          env:
-            pr_workflow: >-
-              ${{ !contains(github.event.head_commit.message, '[workflow:!pull_request]') && 'pull_request' || '' }}
-            nightly_workflow: >-
-              ${{ contains(github.event.head_commit.message, '[workflow:nightly]') && 'nightly' || '' }}
+          echo "ci_enabled=${{ env.ci_enabled }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "matrix_enabled=${{ !contains(github.event.head_commit.message, '[skip-matrix]') }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "vdc_enabled=${{ !contains(github.event.head_commit.message, '[skip-vdc]') }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "docs_enabled=${{ !contains(github.event.head_commit.message, '[skip-docs]') }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "rapids_enabled=${{ contains(github.event.head_commit.message, '[test-rapids]') }}" | tee -a "${GITHUB_OUTPUT}"
+          echo "matx_enabled=${{ !contains(github.event.head_commit.message, '[skip-matx]') }}" | tee -a "${GITHUB_OUTPUT}"
+      - name: Build workflow
+        # Skip building the matrix when disabled, but still gather PR info for downstream jobs
+        if: steps.export-flags.outputs.matrix_enabled == 'true'
+        id: build-workflow
+        uses: ./.github/actions/workflow-build
         with:
           allow_override: "true"
           inspect_changes_script: >-
@@ -102,8 +92,8 @@ jobs:
             ) }}
           inspect_changes_base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
           workflows: >-
-            ${{ env.pr_workflow }}
-            ${{ env.nightly_workflow }}
+            pull_request
+            ${{ contains(github.event.head_commit.message, '[workflow:nightly]') && 'nightly' || '' }}
 
   dispatch-groups-linux-two-stage:
     name: ${{ matrix.name }}
