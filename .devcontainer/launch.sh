@@ -180,13 +180,16 @@ launch_docker() {
         ENV_VARS+=("${env_vars[@]}")
     fi
 
-    exec docker run \
-        "${RUN_ARGS[@]}" \
-        "${ENV_VARS[@]}" \
-        "${MOUNTS[@]}" \
-        "${DOCKER_IMAGE}" \
-        "${ENTRYPOINTS[@]}" \
-        "$@"
+    (
+        set -x
+        exec docker run \
+          "${RUN_ARGS[@]}" \
+          "${ENV_VARS[@]}" \
+          "${MOUNTS[@]}" \
+          "${DOCKER_IMAGE}" \
+          "${ENTRYPOINTS[@]}" \
+          "$@"
+    )
 }
 
 launch_vscode() {

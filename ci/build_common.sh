@@ -163,6 +163,11 @@ export CUDACXX="${CUDA_COMPILER}"
 export CUDAHOSTCXX="${HOST_COMPILER}"
 export CXX_STANDARD
 
+if [[ -n "${CCCL_DEBUG_SCCACHE:-}" ]]; then
+  export SCCACHE_LOG="info"
+  export SCCACHE_DEBUG_LOG="${BUILD_DIR}/sccache.debug.log"
+fi
+
 source ./pretty_printing.sh
 
 print_environment_details() {
@@ -282,6 +287,11 @@ function build_preset() {
     local preset_dir="${BUILD_DIR}/${PRESET}"
     local sccache_json="${preset_dir}/sccache_stats.json"
 
+    # If debug logging is enabled, clear the previous log before the build
+    if [[ -n "${CCCL_DEBUG_SCCACHE:-}" && -n "${SCCACHE_DEBUG_LOG:-}" ]]; then
+        rm -f "${SCCACHE_DEBUG_LOG}" || :
+    fi
+
     source "./sccache_stats.sh" "start" || :
 
     pushd .. > /dev/null
@@ -299,6 +309,14 @@ function build_preset() {
         echo "${minimal_sccache_stats}"
         sccache -s || :
         end_group
+
+        if [[ -n "${CCCL_DEBUG_SCCACHE:-}" && -n "${SCCACHE_DEBUG_LOG:-}" ]]; then
+            if [[ -f "${SCCACHE_DEBUG_LOG}" ]]; then
+                begin_group "🪵 sccache debug log"
+                cat "${SCCACHE_DEBUG_LOG}" || :
+                end_group
+            fi
+        fi
 
         begin_group "🥷 ninja build times"
         echo "The "weighted" time is the elapsed time of each build step divided by the number
