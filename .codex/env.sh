@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# This script sets up the OpenAI Codex environment to be able
+# to configure and build the CCCL project.
+#
+# This is based on an LTS Ubuntu image with some common development
+# utilities pre-installed. This script adds a toolchain, CCCL build
+# dependencies, and utilities like pre-commit.
+#
+# Running tests that require GPUs are not supported.
+
 set -x
 set -euo pipefail
 
@@ -31,7 +40,7 @@ CUDA_PACKAGES=(
 APT_PACKAGES=(
   build-essential
   cmake
-  sccache
+  sccache # We aren't configured to use our AWS buckets, but makes our scripting more robust.
   libtbb-dev
 )
 
@@ -65,14 +74,6 @@ retry() {
     echo "Retrying in $wait_secs seconds..."
     sleep "$wait_secs"
   done
-}
-
-apt_populate() {
-  # Update apt with retry, only if it hasn't been updated before.
-  if [ "$(find /var/lib/apt/lists -mindepth 1 | head -n1 | wc -l)" = "0" ]; then
-      echo "Running apt-get update...";
-      retry 5 2 apt-get update -y;
-  fi
 }
 
 suffix_from_version() {
@@ -172,7 +173,7 @@ if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
 fi
 
 # Update apt once after all repos are added
-$SUDO apt_populate
+retry 5 2 $SUDO apt-get update -y
 
 # -----------------------------
 # Installation
