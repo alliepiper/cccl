@@ -26,7 +26,6 @@ env:
       (github.repository == 'NVIDIA/cccl' && github.event_name == 'push') ||
       (github.repository != 'NVIDIA/cccl' && github.event_name == 'pull_request')
     }}
-  nv_runners: ${{ github.repository == 'NVIDIA/cccl' }}
   matrix_enabled: ${{ !contains(github.event.head_commit.message, '[skip-matrix]') }}
   vdc_enabled: ${{ !contains(github.event.head_commit.message, '[skip-vdc]') }}
   docs_enabled: ${{ !contains(github.event.head_commit.message, '[skip-docs]') }}
@@ -83,20 +82,27 @@ jobs:
           echo "docs_enabled=${docs_enabled}" | tee -a "${GITHUB_OUTPUT}"
           echo "rapids_enabled=${rapids_enabled}" | tee -a "${GITHUB_OUTPUT}"
           echo "matx_enabled=${matx_enabled}" | tee -a "${GITHUB_OUTPUT}"
-      - name: Build workflow
-        # Skip building the matrix when disabled, but still gather PR info for downstream jobs
-        if: env.matrix_enabled == 'true'
-        id: build-workflow
-        uses: ./.github/actions/workflow-build
-        env:
-          pr_worflow: ${{ !contains(github.event.head_commit.message, '[workflow:!pull_request]') && 'pull_request' || '' }}
-          nightly_workflow: ${{ contains(github.event.head_commit.message, '[workflow:nightly]') && 'nightly' || '' }}
+        - name: Build workflow
+          # Skip building the matrix when disabled, but still gather PR info for downstream jobs
+          if: env.matrix_enabled == 'true'
+          id: build-workflow
+          uses: ./.github/actions/workflow-build
+          env:
+            pr_workflow: >-
+              ${{ !contains(github.event.head_commit.message, '[workflow:!pull_request]') && 'pull_request' || '' }}
+            nightly_workflow: >-
+              ${{ contains(github.event.head_commit.message, '[workflow:nightly]') && 'nightly' || '' }}
         with:
           allow_override: "true"
-          inspect_changes_script: ${{ toJSON(!contains(github.event.head_commit.message, '[all-projects]') && 'ci/inspect_changes.sh' || '') }}
+          inspect_changes_script: >-
+            ${{ toJSON(
+              !contains(github.event.head_commit.message, '[all-projects]') &&
+              'ci/inspect_changes.sh' ||
+              ''
+            ) }}
           inspect_changes_base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
           workflows: >-
-            ${{ env.pr_worflow }}
+            ${{ env.pr_workflow }}
             ${{ env.nightly_workflow }}
 
   dispatch-groups-linux-two-stage:
