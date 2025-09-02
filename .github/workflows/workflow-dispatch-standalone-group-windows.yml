@@ -4,9 +4,6 @@ defaults:
   run:
     shell: bash --noprofile --norc -euo pipefail {0}
 
-env:
-  nv_runners: ${{ github.repository == 'NVIDIA/cccl' }}
-
 on:
   workflow_call:
     inputs:
@@ -18,7 +15,7 @@ on:
 jobs:
   run-jobs:
     name: ${{ matrix.name }}
-    runs-on: ${{ env.nv_runners == 'true' && matrix.runner || 'windows-latest' }}
+    runs-on: ${{ github.repository == 'NVIDIA/cccl' && matrix.runner || 'windows-latest' }}
     permissions:
       id-token: write
       contents: read

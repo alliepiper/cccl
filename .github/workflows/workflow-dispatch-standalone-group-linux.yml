@@ -4,9 +4,6 @@ defaults:
   run:
     shell: bash --noprofile --norc -euo pipefail {0}
 
-env:
-  nv_runners: ${{ github.repository == 'NVIDIA/cccl' }}
-
 on:
   workflow_call:
     inputs:
@@ -25,7 +22,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    runs-on: ${{ env.nv_runners == 'true' && matrix.runner || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository == 'NVIDIA/cccl' && matrix.runner || 'ubuntu-latest' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
