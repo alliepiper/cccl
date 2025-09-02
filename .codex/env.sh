@@ -29,11 +29,12 @@ fi
 
 # CUDA packages (without version suffix)
 CUDA_PACKAGES=(
-  cuda-nvcc
-  libcurand-dev
-  cuda-nvml-dev
   cuda-cupti-dev
+  cuda-nvcc
+  cuda-nvml-dev
   cuda-nvrtc-dev
+  libcurand-dev
+  libnvjitlink-dev
 )
 
 # Non-CUDA apt packages
