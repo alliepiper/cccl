@@ -97,7 +97,7 @@ jobs:
     name: ${{matrix.devcontainer.name}}
     needs: get-devcontainer-list
     if: ${{ needs.get-devcontainer-list.outputs.skip != 'true' }}
-    runs-on: linux-amd64-cpu4
+    runs-on: ${{ github.repository == 'NVIDIA/cccl' && 'linux-amd64-cpu4' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -123,6 +123,7 @@ jobs:
       # We don't really need sccache configured, but we need the AWS credentials envvars to be set
       # in order to avoid the devcontainer hanging waiting for GitHub authentication
     - name: Get AWS credentials for sccache bucket
+      if: ${{ github.repository == 'NVIDIA/cccl' }}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
