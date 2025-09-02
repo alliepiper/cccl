@@ -50,6 +50,7 @@ runs:
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
     - name: Get AWS credentials for sccache bucket
+      if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
@@ -145,7 +146,7 @@ runs:
 
         # Explicitly pass which GPU to use if on a GPU runner
         if [[ "${JOB_RUNNER}" = *"-gpu-"* ]]; then
-          gpu_request+=(--gpus "device=${NVIDIA_VISIBLE_DEVICES}")
+          gpu_request+=(--gpus "device=${NVIDIA_VISIBLE_DEVICES:-}")
         fi
 
         # If the image contains "cudaXX.Yext"...
@@ -181,7 +182,7 @@ runs:
             --env "GITHUB_STEP_SUMMARY=$GITHUB_STEP_SUMMARY" \
             --env "GH_TOKEN=${{ github.token }}" \
             --env "HOST_WORKSPACE=${{github.workspace}}" \
-            --env "NVIDIA_VISIBLE_DEVICES=$NVIDIA_VISIBLE_DEVICES" \
+            --env "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-}" \
             --env "JOB_ID=$JOB_ID" \
             --volume "${ARTIFACT_ARCHIVES}:${ARTIFACT_ARCHIVES}" \
             --volume "${ARTIFACT_UPLOAD_STAGE}:${ARTIFACT_UPLOAD_STAGE}" \

@@ -24,6 +24,7 @@ runs:
         echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
         echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
     - name: Get AWS credentials for sccache bucket
+      if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
@@ -52,6 +53,7 @@ runs:
           --workdir "${{steps.paths.outputs.MOUNT_REPO}}" \
           --isolation=process \
           --env COMMAND='& ${{inputs.command}}' \
+          --env GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
           ${{ inputs.image }} \
           powershell -c "
             [System.Environment]::SetEnvironmentVariable('AWS_ACCESS_KEY_ID','${{env.AWS_ACCESS_KEY_ID}}');
