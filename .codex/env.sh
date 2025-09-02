@@ -7,7 +7,7 @@ set -euo pipefail
 # -----------------------------
 
 # CTK version to activate after installation
-: "${CTK_DEFAULT_VERSION:=12.9}"
+: "${CTK_DEFAULT_VERSION:=latest}"
 
 # CTK versions to install
 # Note: Use proper array defaulting; the prior form produced
@@ -49,6 +49,30 @@ if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
 else
   SUDO=""
 fi
+
+retry() {
+  attempts=$1
+  wait_secs=$2
+  shift 2
+  cmd="$@"
+  until $cmd; do
+    ((attempts--))
+    if [[ $attempts -le 0 ]]; then
+      echo "Command failed after $attempts attempts: $cmd" >&2
+      return 1
+    fi
+    echo "Retrying in $wait_secs seconds..."
+    sleep "$wait_secs"
+  done
+}
+
+apt_populate() {
+  # Update apt with retry, only if it hasn't been updated before.
+  if [ "$(find /var/lib/apt/lists -mindepth 1 | head -n1 | wc -l)" = "0" ]; then
+      echo "Running apt-get update...";
+      retry 5 2 apt-get update -y;
+  fi
+}
 
 suffix_from_version() {
   local ver="$1"
@@ -147,7 +171,7 @@ if ! dpkg -s cuda-keyring >/dev/null 2>&1; then
 fi
 
 # Update apt once after all repos are added
-$SUDO apt-get update -y
+$SUDO apt_populate
 
 # -----------------------------
 # Installation
