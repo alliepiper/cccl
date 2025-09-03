@@ -53,6 +53,7 @@ runs:
           --workdir "${{steps.paths.outputs.MOUNT_REPO}}" \
           --isolation=process \
           --env COMMAND='& ${{inputs.command}}' \
+          --env GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
           ${{ inputs.image }} \
           powershell -c "
             [System.Environment]::SetEnvironmentVariable('AWS_ACCESS_KEY_ID','${{env.AWS_ACCESS_KEY_ID}}');
