@@ -72,8 +72,8 @@ workflows:
     - {jobs: ['build', 'test_cpu'], project: 'thrust',          std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
     - {jobs: ['build'],             project: 'cub',             std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
     - {jobs: ['build'],             project: 'cudax',           std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
-    - {jobs: ['build'],             project: 'cccl_c_parallel', std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
-    - {jobs: ['build'],             project: 'python',          std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'cccl_c_parallel', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'python',          cxx: ['gcc', 'clang', 'msvc']}
     - {jobs: ['verify_codegen'],    project: 'libcudacxx'}
 
   nightly:
