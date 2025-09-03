@@ -19,6 +19,7 @@ find_package(Thrust CONFIG REQUIRED
 function(cudax_build_compiler_targets)
   set(cuda_compile_options)
   set(cxx_compile_options)
+  set(link_options)
   set(cxx_compile_definitions)
 
   if ("MSVC" STREQUAL "${CMAKE_CXX_COMPILER_ID}")
@@ -51,6 +52,7 @@ function(cudax_build_compiler_targets)
   cccl_build_compiler_interface(cudax.compiler_interface
     "${cuda_compile_options}"
     "${cxx_compile_options}"
+    "${link_options}"
     "${cxx_compile_definitions}"
   )
 
