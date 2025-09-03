@@ -105,7 +105,7 @@ jobs:
               ''
             ) }}
           inspect_changes_base_sha: ${{ steps.export-pr-info.outputs.base_sha }}
-          workflows: pull_request
+          workflows: ${{ github.repository == 'NVIDIA/cccl' && 'pull_request' || 'pull_request_fork' }}
 
   dispatch-groups-linux-two-stage:
     name: ${{ matrix.name }}
@@ -244,7 +244,7 @@ jobs:
       }}
     permissions:
       contents: read
-    runs-on: linux-amd64-cpu32
+    runs-on: ${{ github.repository == 'NVIDIA/cccl' && 'linux-amd64-cpu32' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

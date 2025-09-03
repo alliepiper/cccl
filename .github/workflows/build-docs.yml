@@ -21,7 +21,7 @@ concurrency:
 jobs:
   # Build and deploy job
   build-and-deploy:
-    runs-on: linux-amd64-cpu32
+    runs-on: ${{ github.repository == 'NVIDIA/cccl' && 'linux-amd64-cpu32' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

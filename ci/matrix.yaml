@@ -67,6 +67,15 @@ workflows:
     # NVHPC stdpar smoke tests
     - {jobs: ['build'], project: 'stdpar', std: 'all', ctk: '12.9', cxx: 'nvhpc', cpu: ['amd64', 'arm64']}
 
+  pull_request_fork:
+    - {jobs: ['build'],             project: 'libcudacxx',      std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build', 'test_cpu'], project: 'thrust',          std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'cub',             std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'cudax',           std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'cccl_c_parallel', std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['build'],             project: 'python',          std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
+    - {jobs: ['verify_codegen'],    project: 'libcudacxx'}
+
   nightly:
     # Edge-case jobs
     - {jobs: ['limited'], project: 'cub', std: 17, gpu: 'rtx2080'}
