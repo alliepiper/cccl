@@ -17,10 +17,11 @@ function(thrust_add_header_test thrust_target label definitions)
   string(TOLOWER "${config_host}" host_lower)
   string(TOLOWER "${config_device}" device_lower)
 
+  set(langs CXX)
   if (config_device STREQUAL "CUDA")
-    set(lang CUDA)
+    set(langs CUDA)
   else()
-    set(lang CXX)
+    list(APPEND langs CUDA)
   endif()
 
   # GLOB ALL THE THINGS
@@ -106,26 +107,35 @@ function(thrust_add_header_test thrust_target label definitions)
     list(APPEND headers ${header})
   endforeach()
 
-  set(headertest_target ${config_prefix}.headers.${label})
-  cccl_generate_header_tests(${headertest_target} thrust
-    LANGUAGE ${lang}
-    HEADERS ${headers}
-  )
-  target_link_libraries(${headertest_target} PUBLIC ${thrust_target})
-  thrust_clone_target_properties(${headertest_target} ${thrust_target})
+  foreach (lang IN LISTS langs)
+    set(headertest_target ${config_prefix}.headers.${label})
+    if ((NOT config_device STREQUAL "CUDA") AND lang STREQUAL "CUDA")
+      set(headertest_target ${headertest_target}.cuda)
+    endif()
 
-  if ("CUDA" STREQUAL "${config_device}")
-    thrust_configure_cuda_target(${headertest_target} RDC ${THRUST_FORCE_RDC})
-  endif()
+    cccl_generate_header_tests(${headertest_target} thrust
+      LANGUAGE ${lang}
+      HEADERS ${headers}
+    )
+    target_link_libraries(${headertest_target} PUBLIC ${thrust_target})
+    thrust_clone_target_properties(${headertest_target} ${thrust_target})
+    if (definitions)
+      target_compile_definitions(${headertest_target} PRIVATE ${definitions})
+    endif()
 
-  # Disable macro checks on TBB; the TBB atomic implementation uses `I` and
-  # our checks will issue false errors.
-  if ("TBB" IN_LIST config_systems)
-    target_compile_definitions(${headertest_target} PRIVATE CCCL_IGNORE_HEADER_MACRO_CHECKS)
-  endif()
+    if (lang STREQUAL "CUDA")
+      thrust_configure_cuda_target(${headertest_target} RDC ${THRUST_FORCE_RDC})
+    endif()
 
-  add_dependencies(thrust.all.headers ${headertest_target})
-  add_dependencies(${config_prefix}.all ${headertest_target})
+    # Disable macro checks on TBB; the TBB atomic implementation uses `I` and
+    # our checks will issue false errors.
+    if ("TBB" IN_LIST config_systems)
+      target_compile_definitions(${headertest_target} PRIVATE CCCL_IGNORE_HEADER_MACRO_CHECKS)
+    endif()
+
+    add_dependencies(thrust.all.headers ${headertest_target})
+    add_dependencies(${config_prefix}.all ${headertest_target})
+  endforeach()
 endfunction()
 
 foreach(thrust_target IN LISTS THRUST_TARGETS)
