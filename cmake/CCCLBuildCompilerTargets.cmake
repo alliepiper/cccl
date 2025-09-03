@@ -77,7 +77,7 @@ function(cccl_build_compiler_interface interface_target cuda_compile_options cxx
   foreach (link_option IN LISTS link_options)
     target_link_options(${interface_target} INTERFACE
       $<$<LINK_LANGUAGE:CXX>:${link_option}>
-      $<$<LINK_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xlinker=${link_option}>
+      $<$<LINK_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xlinker ${link_option}>
     )
   endforeach()
 
