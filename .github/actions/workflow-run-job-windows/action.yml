@@ -65,7 +65,7 @@ runs:
             [System.Environment]::SetEnvironmentVariable('SCCACHE_S3_USE_SSL','${{env.SCCACHE_S3_USE_SSL}}');
             [System.Environment]::SetEnvironmentVariable('SCCACHE_S3_NO_CREDENTIALS','${{env.SCCACHE_S3_NO_CREDENTIALS}}');
             git config --global --add safe.directory '${{steps.paths.outputs.MOUNT_REPO}}';
-            Invoke-Expression \$env:COMMAND"
+            Invoke-Expression \$env:COMMAND; exit \$LASTEXITCODE"
     - name: Prepare job artifacts
       shell: bash --noprofile --norc -euo pipefail {0}
       id: done
