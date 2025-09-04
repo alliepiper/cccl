@@ -8,6 +8,9 @@ usage="Usage: $0 -py-version <python_version> [additional options...]"
 source "$ci_dir/util/python/common_arg_parser.sh"
 parse_python_args "$@"
 
+readonly cuda12_version="12.9.1"
+readonly cuda13_version="13.0.0"
+
 # Check if py_version was provided (this script requires it)
 require_py_version "$usage" || exit 1
 
@@ -49,8 +52,9 @@ echo "Building CUDA 12 wheel..."
       --env GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
       --env GITHUB_RUN_ID=${GITHUB_RUN_ID:-} \
       --env JOB_ID=${JOB_ID:-} \
-      rapidsai/ci-wheel:25.10-cuda12.9.1-rockylinux8-py${py_version} \
+      rapidsai/ci-wheel:25.10-$cuda12_version-rockylinux8-py${py_version} \
       /workspace/ci/build_cuda_cccl_wheel.sh
+  docker rmi -f rapidsai/ci-wheel:25.10-$cuda12_version-rockylinux8-py${py_version}
 )
 
 echo "Building CUDA 13 wheel..."
@@ -64,8 +68,9 @@ echo "Building CUDA 13 wheel..."
       --env GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
       --env GITHUB_RUN_ID=${GITHUB_RUN_ID:-} \
       --env JOB_ID=${JOB_ID:-} \
-      rapidsai/ci-wheel:25.10-cuda13.0.0-rockylinux8-py${py_version} \
+      rapidsai/ci-wheel:25.10-$cuda13_version-rockylinux8-py${py_version} \
       /workspace/ci/build_cuda_cccl_wheel.sh
+  docker rmi -f rapidsai/ci-wheel:25.10-$cuda13_version-rockylinux8-py${py_version}
 )
 
 echo "Merging CUDA wheels..."
