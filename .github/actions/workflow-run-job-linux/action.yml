@@ -49,6 +49,12 @@ runs:
       shell: bash --noprofile --norc -euo pipefail {0}
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
+    - name: Configure sccache
+      shell: bash --noprofile --norc -euo pipefail {0}
+      run: |
+        if [[ "${GITHUB_REPOSITORY}" != "NVIDIA/cccl" ]]; then
+          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
+        fi
     - name: Get AWS credentials for sccache bucket
       if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
@@ -169,7 +175,7 @@ runs:
             "${gpu_request[@]}" \
             --env "AWS_ROLE_ARN=" \
             --env "COMMAND=$COMMAND" \
-            --env "SCCACHE_IDLE_TIMEOUT=0" \
+            --env "SCCACHE_S3_NO_CREDENTIALS=${SCCACHE_S3_NO_CREDENTIALS}" \
             --env "GITHUB_ENV=$GITHUB_ENV" \
             --env "GITHUB_SHA=$GITHUB_SHA" \
             --env "GITHUB_PATH=$GITHUB_PATH" \
