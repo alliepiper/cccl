@@ -22,11 +22,7 @@ runs:
         echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
         echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
         echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
-        if [[ "${GITHUB_REPOSITORY}" != "NVIDIA/cccl" ]]; then
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
-        else
-          echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
-        fi
+        echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
     - name: Get AWS credentials for sccache bucket
       if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
