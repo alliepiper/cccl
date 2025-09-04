@@ -17,15 +17,19 @@ runs:
   steps:
     - name: Configure sccache
       shell: bash --noprofile --norc -euo pipefail {0}
+      env:
+        FORK_GH_TOKEN: ${{ secrets.SCCACHE_AUTH_TOKEN }}
       run: |
-        echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
-        echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
-        echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
-        echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
-        if [[ "${GITHUB_REPOSITORY}" != "NVIDIA/cccl" ]]; then
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
-        else
+        if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
+          echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
+          echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
+          echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
+          echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
           echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
+        else
+          echo "::warning::sccache remote cache is disabled for forks by default."
+          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and add it as the GITHUB_TOKEN secret to enable remote sccache."
+          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
         fi
     - name: Get AWS credentials for sccache bucket
       if: ${{github.repository == 'NVIDIA/cccl'}}
@@ -34,6 +38,10 @@ runs:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
         aws-region: us-east-2
         role-duration-seconds: 43200 # 12 hours
+    - name: Configure fork GitHub token for sccache
+      if: ${{ github.repository != 'NVIDIA/cccl' && secrets.SCCACHE_AUTH_TOKEN != '' }}
+      shell: bash --noprofile --norc -euo pipefail {0}
+      run: echo "GITHUB_TOKEN=${{ secrets.SCCACHE_AUTH_TOKEN }}" | tee -a "$GITHUB_ENV"
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
@@ -58,6 +66,7 @@ runs:
           --isolation=process \
           --env COMMAND='& ${{inputs.command}}' \
           --env GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
+          --env GITHUB_TOKEN=$GITHUB_TOKEN \
           ${{ inputs.image }} \
           powershell -c "
             [System.Environment]::SetEnvironmentVariable('AWS_ACCESS_KEY_ID','${{env.AWS_ACCESS_KEY_ID}}');
