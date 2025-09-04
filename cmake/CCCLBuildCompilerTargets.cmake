@@ -25,7 +25,7 @@ option(CCCL_ENABLE_RTTI "Enable RTTI within CCCL libraries." ON)
 option(CCCL_ENABLE_WERROR "Treat warnings as errors for CCCL targets." ON)
 option(CCCL_ENABLE_ASAN "Enable address sanitizer for CCCL targets." OFF)
 
-function(cccl_build_compiler_interface interface_target cuda_compile_options cxx_compile_options link_options compile_defs)
+function(cccl_build_compiler_interface interface_target c_compile_options cxx_compile_options cuda_compile_options link_options compile_defs)
   # We test to see if C++ compiler options exist using try-compiles in the CXX lang, and then reuse those flags as
   # -Xcompiler flags for CUDA targets. This requires that the CXX compiler and CUDA_HOST compilers are the same when
   # using nvcc.
@@ -61,9 +61,9 @@ function(cccl_build_compiler_interface interface_target cuda_compile_options cxx
 
   add_library(${interface_target} INTERFACE)
 
-  foreach (cuda_option IN LISTS cuda_compile_options)
+  foreach (c_option IN LISTS c_compile_options)
     target_compile_options(${interface_target} INTERFACE
-      $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:${cuda_option}>
+      $<$<COMPILE_LANGUAGE:C>:${c_option}>
     )
   endforeach()
 
@@ -74,8 +74,15 @@ function(cccl_build_compiler_interface interface_target cuda_compile_options cxx
     )
   endforeach()
 
+  foreach (cuda_option IN LISTS cuda_compile_options)
+    target_compile_options(${interface_target} INTERFACE
+      $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:${cuda_option}>
+    )
+  endforeach()
+
   foreach (link_option IN LISTS link_options)
     target_link_options(${interface_target} INTERFACE
+      $<$<LINK_LANGUAGE:C>:${link_option}>
       $<$<LINK_LANGUAGE:CXX>:${link_option}>
       $<$<LINK_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xlinker ${link_option}>
     )
@@ -87,8 +94,9 @@ function(cccl_build_compiler_interface interface_target cuda_compile_options cxx
 endfunction()
 
 function(cccl_build_compiler_targets)
-  set(cuda_compile_options)
+  set(c_compile_options)
   set(cxx_compile_options)
+  set(cuda_compile_options)
   set(link_options)
   set(cxx_compile_definitions)
 
@@ -111,11 +119,15 @@ function(cccl_build_compiler_targets)
 
   # AddressSanitizer flags are only supported for GCC and Clang.
   if (CCCL_ENABLE_ASAN)
+    message(STATUS "AddressSanitizer enabled")
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
       list(APPEND cxx_compile_options "-fsanitize=address")
       list(APPEND cxx_compile_options "-fno-omit-frame-pointer")
       list(APPEND cxx_compile_options "-fsanitize-address-use-after-scope")
+      list(APPEND c_compile_options "-fsanitize=address")
+      list(APPEND c_compile_options "-fno-omit-frame-pointer")
+      list(APPEND c_compile_options "-fsanitize-address-use-after-scope")
       list(APPEND link_options "-fsanitize=address")
     else()
       message(FATAL_ERROR "CCCL_ENABLE_ASAN is only supported with GCC and Clang, given ${CMAKE_CXX_COMPILER_ID}.")
@@ -213,8 +225,9 @@ function(cccl_build_compiler_targets)
   endif()
 
   cccl_build_compiler_interface(cccl.compiler_interface
-    "${cuda_compile_options}"
+    "${c_compile_options}"
     "${cxx_compile_options}"
+    "${cuda_compile_options}"
     "${link_options}"
     "${cxx_compile_definitions}"
   )
