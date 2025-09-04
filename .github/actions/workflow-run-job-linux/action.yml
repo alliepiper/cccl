@@ -56,6 +56,18 @@ runs:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
         aws-region: us-east-2
         role-duration-seconds: 43200 # 12 hours
+    - name: Configure fork GitHub token for sccache
+      if: ${{ github.repository != 'NVIDIA/cccl' }}
+      shell: bash --noprofile --norc -euo pipefail {0}
+      env:
+        FORK_GH_TOKEN: ${{ secrets.SCCACHE_AUTH_TOKEN }}
+      run: |
+        if [[ -n "${FORK_GH_TOKEN}" ]]; then
+          echo "GITHUB_TOKEN=${FORK_GH_TOKEN}" | tee -a "$GITHUB_ENV"
+        else
+          echo "::warning::sccache remote cache is disabled for forks by default."
+          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and add it as the GITHUB_TOKEN secret to enable remote sccache."
+        fi
     - name: Print CI override matrix job def
       env:
         GH_TOKEN: ${{ github.token }}
@@ -180,6 +192,7 @@ runs:
             --env "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
             --env "GITHUB_STEP_SUMMARY=$GITHUB_STEP_SUMMARY" \
             --env "GH_TOKEN=${{ github.token }}" \
+            --env "GITHUB_TOKEN=${GITHUB_TOKEN:-}" \
             --env "HOST_WORKSPACE=${{github.workspace}}" \
             --env "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-}" \
             --env "JOB_ID=$JOB_ID" \
