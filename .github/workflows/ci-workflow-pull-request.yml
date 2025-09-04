@@ -213,7 +213,7 @@ jobs:
     if: >-
       ${{
         needs.build-workflow.outputs.ci_enabled == 'true' &&
-        needs.build-workflow.outputs.vdc_enabled   == 'true'
+        needs.build-workflow.outputs.vdc_enabled == 'true'
       }}
     permissions:
       id-token: write
