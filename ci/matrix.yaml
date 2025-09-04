@@ -70,7 +70,7 @@ workflows:
     - {jobs: ['build'],             project: 'cub',             std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
     - {jobs: ['build'],             project: 'cudax',           std: 'max', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
     - {jobs: ['build'],             project: 'cccl_c_parallel', cxx: ['gcc', 'clang', 'msvc'], sm: '80'}
-    - {jobs: ['build'],             project: 'python',          cxx: ['gcc', 'clang', 'msvc']}
+    - {jobs: ['build'],             project: 'python',          cxx: ['gcc', 'clang', 'msvc'], py_version: ['3.12'], sm: '80'}
     - {jobs: ['verify_codegen'],    project: 'libcudacxx'}
 
   nightly:
