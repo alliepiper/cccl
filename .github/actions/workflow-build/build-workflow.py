@@ -190,7 +190,8 @@ def canonicalize_host_compiler_name(cxx_string):
                     version = version_key
 
     if version not in hc_def["versions"]:
-        raise Exception(f"Unknown version '{version}' for host compiler '{id}'.")
+        raise Exception(
+            f"Unknown version '{version}' for host compiler '{id}'.")
 
     cxx_string = f"{id}{version}"
 
@@ -248,7 +249,8 @@ def get_device_compiler(matrix_job):
         result["version"] = host_compiler["version"]
         result["stds"] = host_compiler["stds"]
     else:
-        raise Exception(f"Cannot determine version/std info for device compiler '{id}'")
+        raise Exception(
+            f"Cannot determine version/std info for device compiler '{id}'")
 
     return result
 
@@ -263,8 +265,7 @@ def get_gpu(gpu_string):
     result = matrix_yaml["gpus"][gpu_string]
     result["id"] = gpu_string
 
-    if "testing" not in result:
-        result["testing"] = False
+    result["testing"] = result.get("testing", False)
 
     return result
 
@@ -279,11 +280,8 @@ def get_project(project):
     result = matrix_yaml["projects"][project]
     result["id"] = project
 
-    if "name" not in result:
-        result["name"] = project
-
-    if "job_map" not in result:
-        result["job_map"] = {}
+    result["name"] = result.get("name", project)
+    result["job_map"] = result.get("job_map", {})
 
     return result
 
@@ -298,26 +296,15 @@ def get_job_type_info(job):
     result = matrix_yaml["jobs"][job]
     result["id"] = job
 
-    if "name" not in result:
-        result["name"] = job.capitalize()
-    if "gpu" not in result:
-        result["gpu"] = False
-    if "cuda_ext" not in result:
-        result["cuda_ext"] = False
-    if "force_producer_ctk" in result:
-        result["force_producer_ctk"] = canonicalize_ctk_version(
-            result["force_producer_ctk"]
-        )
-    else:
-        result["force_producer_ctk"] = None
-    if "needs" not in result:
-        result["needs"] = None
-    if "invoke" not in result:
-        result["invoke"] = {}
-    if "prefix" not in result["invoke"]:
-        result["invoke"]["prefix"] = job
-    if "args" not in result["invoke"]:
-        result["invoke"]["args"] = ""
+    result["name"] = result.get("name", job.capitalize())
+    result["gpu"] = result.get("gpu", False)
+    result["cuda_ext"] = result.get("cuda_ext", False)
+    result["force_producer_ctk"] = canonicalize_ctk_version(result.get(
+        "force_producer_ctk")) if "force_producer_ctk" in result else None
+    result["needs"] = result.get("needs", None)
+    result["invoke"] = result.get("invoke", {})
+    result["invoke"]["prefix"] = result["invoke"].get("prefix", job)
+    result["invoke"]["args"] = result["invoke"].get("args", "")
 
     return result
 
@@ -332,13 +319,8 @@ def get_tag_info(tag):
     result = matrix_yaml["tags"][tag]
     result["id"] = tag
 
-    if "required" not in result:
-        result["required"] = False
-
-    if "default" in result:
-        result["required"] = False
-    else:
-        result["default"] = None
+    result["required"] = result.get("required", False)
+    result["default"] = result.get("default", None)
 
     return result
 
@@ -387,7 +369,8 @@ def lookup_supported_stds(matrix_job):
         stds = stds & set(project["stds"])
     if len(stds) == 0:
         raise Exception(
-            error_message_with_matrix_job(matrix_job, "No supported stds found.")
+            error_message_with_matrix_job(
+                matrix_job, "No supported stds found.")
         )
     return sorted(list(stds))
 
@@ -426,14 +409,16 @@ def generate_dispatch_job_name(matrix_job, job_type):
         (" sm{" + str(matrix_job["sm"]) + "}") if "sm" in matrix_job else ""
     )
     cmake_options = (
-        (" " + matrix_job["cmake_options"]) if "cmake_options" in matrix_job else ""
+        (" " + matrix_job["cmake_options"]
+         ) if "cmake_options" in matrix_job else ""
     )
 
     ctk = matrix_job["ctk"]
     host_compiler = get_host_compiler(matrix_job["cxx"])
     std_str = (" C++" + str(matrix_job["std"])) if "std" in matrix_job else ""
     py_str = (
-        (" py" + str(matrix_job["py_version"])) if "py_version" in matrix_job else ""
+        (" py" + str(matrix_job["py_version"])
+         ) if "py_version" in matrix_job else ""
     )
 
     config_tag = (
@@ -559,7 +544,8 @@ def generate_dispatch_job_origin(matrix_job, job_type):
         device_compiler = get_device_compiler(matrix_job)
         del origin_job["cudacxx"]
 
-        origin_job["cudacxx"] = device_compiler["id"] + device_compiler["version"]
+        origin_job["cudacxx"] = device_compiler["id"] + \
+            device_compiler["version"]
         origin_job["cudacxx_family"] = device_compiler["name"]
 
     origin["matrix_job"] = origin_job
@@ -615,11 +601,13 @@ def generate_dispatch_two_stage_json(matrix_job, producer_job_type, consumer_job
     else:
         producer_matrix_job = matrix_job
 
-    producer_json = generate_dispatch_job_json(producer_matrix_job, producer_job_type)
+    producer_json = generate_dispatch_job_json(
+        producer_matrix_job, producer_job_type)
 
     consumers_json = []
     for consumer_job_type in consumer_job_types:
-        consumers_json.append(generate_dispatch_job_json(matrix_job, consumer_job_type))
+        consumers_json.append(generate_dispatch_job_json(
+            matrix_job, consumer_job_type))
 
     return {"producers": [producer_json], "consumers": consumers_json}
 
@@ -648,7 +636,8 @@ def generate_dispatch_group_jobs(matrix_job):
 
     for producer, consumers in two_stage.items():
         dispatch_group_jobs["two_stage"].append(
-            generate_dispatch_two_stage_json(matrix_job, producer, list(consumers))
+            generate_dispatch_two_stage_json(
+                matrix_job, producer, list(consumers))
         )
 
     for job_type in standalone:
@@ -764,8 +753,10 @@ def finalize_workflow_dispatch_groups(workflow_dispatch_groups_orig):
                     [consumer["name"] for consumer in matching_consumers]
                 )
                 print(f"Original consumers: {consumer_names}", file=sys.stderr)
-                consumer_names = ", ".join([consumer["name"] for consumer in consumers])
-                print(f"Duplicate consumers: {consumer_names}", file=sys.stderr)
+                consumer_names = ", ".join(
+                    [consumer["name"] for consumer in consumers])
+                print(
+                    f"Duplicate consumers: {consumer_names}", file=sys.stderr)
                 # Merge if unique:
                 for consumer in consumers:
                     if not dispatch_job_in_container(consumer, matching_consumers):
@@ -780,12 +771,14 @@ def finalize_workflow_dispatch_groups(workflow_dispatch_groups_orig):
         # Update with the merged lists:
         two_stage_json = []
         for producer, consumers in zip(merged_producers, merged_consumers):
-            two_stage_json.append({"producers": [producer], "consumers": consumers})
+            two_stage_json.append(
+                {"producers": [producer], "consumers": consumers})
         group_json["two_stage"] = two_stage_json
 
     # Check for any duplicate jobs in standalone arrays. Warn and remove duplicates.
     for group_name, group_json in workflow_dispatch_groups.items():
-        standalone_jobs = group_json["standalone"] if "standalone" in group_json else []
+        standalone_jobs = group_json["standalone"] if "standalone" in group_json else [
+        ]
         unique_standalone_jobs = []
         for job_json in standalone_jobs:
             if dispatch_job_in_container(job_json, unique_standalone_jobs):
@@ -797,7 +790,8 @@ def finalize_workflow_dispatch_groups(workflow_dispatch_groups_orig):
                 unique_standalone_jobs.append(job_json)
 
         # If any producer/consumer jobs exist in standalone arrays, warn and remove the standalones.
-        two_stage_jobs = group_json["two_stage"] if "two_stage" in group_json else []
+        two_stage_jobs = group_json["two_stage"] if "two_stage" in group_json else [
+        ]
         for two_stage_job in two_stage_jobs:
             for producer in two_stage_job["producers"]:
                 if remove_dispatch_job_from_container(producer, unique_standalone_jobs):
@@ -822,7 +816,8 @@ def finalize_workflow_dispatch_groups(workflow_dispatch_groups_orig):
         for two_stage_job in two_stage_jobs:
             for job in two_stage_job["producers"] + two_stage_job["consumers"]:
                 if dispatch_job_in_container(job, all_two_stage_jobs):
-                    duplicate_jobs[job["name"]] = duplicate_jobs.get(job["name"], 1) + 1
+                    duplicate_jobs[job["name"]] = duplicate_jobs.get(
+                        job["name"], 1) + 1
                 else:
                     all_two_stage_jobs.append(job)
         for job_name, count in duplicate_jobs.items():
@@ -851,14 +846,16 @@ def finalize_workflow_dispatch_groups(workflow_dispatch_groups_orig):
 
     # Sort the dispatch groups by name:
     workflow_dispatch_groups = dict(
-        sorted(workflow_dispatch_groups.items(), key=lambda x: natural_sort_key(x[0]))
+        sorted(workflow_dispatch_groups.items(),
+               key=lambda x: natural_sort_key(x[0]))
     )
 
     # Sort the jobs within each dispatch group:
     for group_name, group_json in workflow_dispatch_groups.items():
         if "standalone" in group_json:
             group_json["standalone"] = sorted(
-                group_json["standalone"], key=lambda x: natural_sort_key(x["name"])
+                group_json["standalone"], key=lambda x: natural_sort_key(
+                    x["name"])
             )
         if "two_stage" in group_json:
             group_json["two_stage"] = sorted(
@@ -899,7 +896,8 @@ def find_workflow_line_number(workflow_name):
 
 def get_matrix_job_origin(matrix_job, workflow_name, workflow_location):
     filename = matrix_yaml["filename"]
-    original_matrix_job = json.dumps(matrix_job, indent=None, separators=(", ", ": "))
+    original_matrix_job = json.dumps(
+        matrix_job, indent=None, separators=(", ", ": "))
     original_matrix_job = original_matrix_job.replace('"', "")
     return {
         "filename": filename,
@@ -1002,7 +1000,8 @@ def validate_tags(matrix_job, ignore_required=False):
             continue
         if tag not in all_tags:
             raise Exception(
-                error_message_with_matrix_job(matrix_job, f"Unknown tag '{tag}'")
+                error_message_with_matrix_job(
+                    matrix_job, f"Unknown tag '{tag}'")
             )
 
     if "gpu" in matrix_job:
@@ -1187,7 +1186,8 @@ def parse_workflow_dispatch_groups(args, workflow_name):
         matrix_job_dispatch_group = matrix_job_to_dispatch_group(
             matrix_job, group_prefix
         )
-        merge_dispatch_groups(workflow_dispatch_groups, matrix_job_dispatch_group)
+        merge_dispatch_groups(workflow_dispatch_groups,
+                              matrix_job_dispatch_group)
 
     return workflow_dispatch_groups
 
@@ -1204,13 +1204,15 @@ def write_outputs(final_workflow):
         nonlocal runner_counts
         nonlocal total_jobs
 
-        job_array = parent_json[array_name] if array_name in parent_json else []
+        job_array = parent_json[array_name] if array_name in parent_json else [
+        ]
         for job_json in job_array:
             total_jobs += 1
             job_list.append(
                 f"{total_jobs:4} id: {job_json['id']:<4}   {array_name:13} {job_json['name']}"
             )
-            id_to_full_job_name[job_json["id"]] = f"{group_name} {job_json['name']}"
+            id_to_full_job_name[job_json["id"]
+                                ] = f"{group_name} {job_json['name']}"
             runner = job_json["runner"]
             runner_counts[runner] = runner_counts.get(runner, 0) + 1
 
@@ -1256,13 +1258,15 @@ def print_gha_workflow(args):
     if args.allow_override and "override" in matrix_yaml["workflows"]:
         override_matrix = matrix_yaml["workflows"]["override"]
         if override_matrix and len(override_matrix) > 0:
-            print(f"::notice::Using 'override' workflow instead of '{workflow_names}'")
+            print(
+                f"::notice::Using 'override' workflow instead of '{workflow_names}'")
             workflow_names = ["override"]
             write_override_matrix(override_matrix)
 
     final_workflow = {}
     for workflow_name in workflow_names:
-        workflow_dispatch_groups = parse_workflow_dispatch_groups(args, workflow_name)
+        workflow_dispatch_groups = parse_workflow_dispatch_groups(
+            args, workflow_name)
         merge_dispatch_groups(final_workflow, workflow_dispatch_groups)
 
     final_workflow = finalize_workflow_dispatch_groups(final_workflow)
@@ -1303,7 +1307,8 @@ def print_devcontainer_info(args):
 
     # Remove all but the following keys from the matrix jobs:
     keep_keys = ["ctk", "cxx", "cuda_ext"]
-    combinations = [{key: job[key] for key in keep_keys} for job in matrix_jobs]
+    combinations = [{key: job[key] for key in keep_keys}
+                    for job in matrix_jobs]
 
     # Remove duplicates and filter out windows jobs:
     unique_combinations = []
