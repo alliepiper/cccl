@@ -404,32 +404,18 @@ def generate_dispatch_group_name(matrix_job):
 def generate_dispatch_job_name(matrix_job, job_type):
     job_info = get_job_type_info(job_type)
     cpu_str = matrix_job["cpu"]
-    gpu_str = (", " + matrix_job["gpu"].upper()) if job_info["gpu"] else ""
-    cuda_compile_arch = (
-        (" sm{" + str(matrix_job["sm"]) + "}") if "sm" in matrix_job else ""
-    )
-    cmake_options = (
-        (" " + matrix_job["cmake_options"]
-         ) if "cmake_options" in matrix_job else ""
-    )
+    gpu_str = f", {matrix_job['gpu'].upper()}" if job_info["gpu"] else ""
+    cuda_compile_arch = f" sm{{{matrix_job['sm']}}}" if "sm" in matrix_job else ""
+    cmake_options = f" {matrix_job['cmake_options']}" if "cmake_options" in matrix_job else ""
 
     ctk = matrix_job["ctk"]
     host_compiler = get_host_compiler(matrix_job["cxx"])
-    std_str = (" C++" + str(matrix_job["std"])) if "std" in matrix_job else ""
-    py_str = (
-        (" py" + str(matrix_job["py_version"])
-         ) if "py_version" in matrix_job else ""
-    )
+    std_str = f" C++{matrix_job['std']}" if "std" in matrix_job else ""
+    py_str = f" py{matrix_job['py_version']}" if "py_version" in matrix_job else ""
 
-    config_tag = (
-        f"CTK{ctk} {host_compiler['name']}{host_compiler['version']}{std_str}{py_str}"
-    )
+    config_tag = f"CTK{ctk} {host_compiler['name']}{host_compiler['version']}{std_str}{py_str}"
 
-    extra_info = (
-        f":{cuda_compile_arch}{cmake_options}"
-        if cuda_compile_arch or cmake_options
-        else ""
-    )
+    extra_info = f":{cuda_compile_arch}{cmake_options}" if cuda_compile_arch or cmake_options else ""
 
     return f"[{config_tag}] {job_info['name']}({cpu_str}{gpu_str}){extra_info}"
 
