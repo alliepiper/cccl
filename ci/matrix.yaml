@@ -5,9 +5,25 @@ workflows:
   #
   # Example:
   # override:
-  #   - {jobs: ['test'], project: 'thrust', std: 17, ctk: '12.X', cxx: ['gcc12', 'clang16']}
+  #   - { jobs: ['test'], project: 'thrust', std: 17, ctk: '12.X', cxx: ['gcc12', 'clang16'] }
+  #   - { jobs: ['build'], project: 'target', ctk: '13.X', cxx: 'gcc',
+  #       args: '--preset cub-cpp20 --build-targets "cub.cpp20.test.iterator"' }
+  #   - { jobs: ['test'],  project: 'target', ctk: '13.X', cxx: 'gcc',
+  #       args: '--preset cub-cpp20 --build-targets "cub.cpp20.test.iterator" --ctest-targets "cub.cpp20.test.iterator"' }
+  #   - { jobs: ['build'], project: 'target', ctk: '13.X', cxx: 'gcc',
+  #       args: '--preset libcudacxx-cpp20 --lit-precompile-tests "cuda/utility/basic_any.pass.cpp"' }
+  #   - { jobs: ['test'],  project: 'target', ctk: '13.X', cxx: 'gcc',
+  #       args: '--preset libcudacxx-cpp20 --lit-tests "cuda/utility/basic_any.pass.cpp"' }
   #
   override:
+    - { jobs: ['build'], project: 'target', ctk: '13.X', cxx: 'gcc',
+        args: '--preset cub-cpp20 --build-targets "cub.cpp20.test.iterator"' }
+    - { jobs: ['test'],  project: 'target', ctk: '13.X', cxx: 'gcc',
+        args: '--preset cub-cpp20 --build-targets "cub.cpp20.test.iterator" --ctest-targets "cub.cpp20.test.iterator"' }
+    - { jobs: ['build'], project: 'target', ctk: '13.X', cxx: 'gcc',
+        args: '--preset libcudacxx-cpp20 --lit-precompile-tests "cuda/utility/basic_any.pass.cpp"' }
+    - { jobs: ['test'],  project: 'target', ctk: '13.X', cxx: 'gcc',
+        args: '--preset libcudacxx-cpp20 --lit-tests "cuda/utility/basic_any.pass.cpp"' }
 
   pull_request:
     # Old CTK: Oldest/newest supported host compilers:
@@ -452,6 +468,18 @@ projects:
     name: 'CCCL C Parallel'
     stds: [20]
 
+  # Run specific build_and_test_targets.sh invocations across the CI matrix.
+  # Use the override workflow and supply arguments via the `args` tag.
+  # Example:
+  #   override:
+  #     - { jobs: ['test'], project: 'target', ctk: '13.X', cxx: 'gcc',
+  #         args: '--preset cub-cpp20 --build-targets "cub.cpp20.test.iterator" --ctest-targets "cub.cpp20.test.iterator"' }
+  target:
+    name: 'Target'
+    stds: [17, 20]
+    job_map:
+      test: ['test_nobuild']
+
 # testing -> Runner with GPU is in a nv-gh-runners testing pool
 gpus:
   v100:     { sm: 70 } # 32 GB,  40 runners
@@ -508,3 +536,7 @@ tags:
   # Additional CMake options to pass to the build.
   # If set, passed to script with `-cmake_options "<cmake_options>"`.
   cmake_options: { required: false }
+  # Additional arguments appended to the generated command.
+  # Typically used with the `target` project to forward options to
+  # ci/util/build_and_test_targets.sh, but works with all CI jobs.
+  args: { required: false, default: "" }
