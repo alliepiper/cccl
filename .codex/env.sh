@@ -33,6 +33,7 @@ CUDA_PACKAGES=(
   cuda-nvcc
   cuda-nvml-dev
   cuda-nvrtc-dev
+  cuda-nvtx
   libcurand-dev
   libnvjitlink-dev
 )
