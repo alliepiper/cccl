@@ -157,7 +157,7 @@ runs:
           aws_access_key_id=$AWS_ACCESS_KEY_ID
           aws_session_token=$AWS_SESSION_TOKEN
           aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
-          EOF
+        EOF
           chmod 0600 "${aws_dir}/credentials"
         fi
         chmod 0664 "${aws_dir}/config"
