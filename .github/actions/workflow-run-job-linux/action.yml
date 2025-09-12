@@ -61,7 +61,6 @@ runs:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
         aws-region: us-east-2
         role-duration-seconds: 43200 # 12 hours
-        github-token: ${{ inputs.fork_sccache_auth_pat || github.token }}
     - name: Print CI override matrix job def
       env:
         GH_TOKEN: ${{ github.token }}
