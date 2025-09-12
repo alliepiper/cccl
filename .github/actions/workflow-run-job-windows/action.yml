@@ -11,6 +11,12 @@ inputs:
   image:
     description: "The Docker image to use."
     required: true
+  fork_sccache_auth_pat:
+    description: >-
+      Optional GitHub personal access token for enabling sccache from personal forks.
+      Requires the `repo`, `read:org`, and `gist` scopes.
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -18,7 +24,7 @@ runs:
     - name: Configure sccache
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
-        FORK_GH_TOKEN: ${{ secrets.SCCACHE_AUTH_TOKEN }}
+        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
       run: |
         if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
           echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
@@ -28,20 +34,16 @@ runs:
           echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
         else
           echo "::warning::sccache remote cache is disabled for forks by default."
-          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and add it as the GITHUB_TOKEN secret to enable remote sccache."
+          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and pass it via fork_sccache_auth_pat to enable remote sccache."
           echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
         fi
     - name: Get AWS credentials for sccache bucket
-      if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
         aws-region: us-east-2
         role-duration-seconds: 43200 # 12 hours
-    - name: Configure fork GitHub token for sccache
-      if: ${{ github.repository != 'NVIDIA/cccl' && secrets.SCCACHE_AUTH_TOKEN != '' }}
-      shell: bash --noprofile --norc -euo pipefail {0}
-      run: echo "GITHUB_TOKEN=${{ secrets.SCCACHE_AUTH_TOKEN }}" | tee -a "$GITHUB_ENV"
+        github-token: ${{ inputs.fork_sccache_auth_pat || github.token }}
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
@@ -59,14 +61,20 @@ runs:
         cat $env:GITHUB_OUTPUT
     - name: Run command # Do not change this step's name, it is checked in parse-job-times.py
       shell: bash --noprofile --norc -euo pipefail {0}
+      env:
+        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
       run: |
+        sccache_token_arg=()
+        if [[ -n "${FORK_GH_TOKEN}" ]]; then
+          sccache_token_arg+=(--env GITHUB_TOKEN="${FORK_GH_TOKEN}")
+        fi
         docker run \
           --mount type=bind,source="${{steps.paths.outputs.HOST_REPO}}",target="${{steps.paths.outputs.MOUNT_REPO}}" \
           --workdir "${{steps.paths.outputs.MOUNT_REPO}}" \
           --isolation=process \
           --env COMMAND='& ${{inputs.command}}' \
-          --env GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
-          --env GITHUB_TOKEN=$GITHUB_TOKEN \
+          --env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+          "${sccache_token_arg[@]}" \
           ${{ inputs.image }} \
           powershell -c "
             [System.Environment]::SetEnvironmentVariable('AWS_ACCESS_KEY_ID','${{env.AWS_ACCESS_KEY_ID}}');

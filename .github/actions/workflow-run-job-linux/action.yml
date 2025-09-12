@@ -20,6 +20,12 @@ inputs:
   host:
     description: "The host compiler to use when selecting a devcontainer."
     required: true
+  fork_sccache_auth_pat:
+    description: >-
+      Optional GitHub personal access token for enabling sccache from personal forks.
+      Requires the `repo`, `read:org`, and `gist` scopes.
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -50,24 +56,12 @@ runs:
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
     - name: Get AWS credentials for sccache bucket
-      if: ${{github.repository == 'NVIDIA/cccl'}}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
         aws-region: us-east-2
         role-duration-seconds: 43200 # 12 hours
-    - name: Configure fork GitHub token for sccache
-      if: ${{ github.repository != 'NVIDIA/cccl' }}
-      shell: bash --noprofile --norc -euo pipefail {0}
-      env:
-        FORK_GH_TOKEN: ${{ secrets.SCCACHE_AUTH_TOKEN }}
-      run: |
-        if [[ -n "${FORK_GH_TOKEN}" ]]; then
-          echo "GITHUB_TOKEN=${FORK_GH_TOKEN}" | tee -a "$GITHUB_ENV"
-        else
-          echo "::warning::sccache remote cache is disabled for forks by default."
-          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and add it as the GITHUB_TOKEN secret to enable remote sccache."
-        fi
+        github-token: ${{ inputs.fork_sccache_auth_pat || github.token }}
     - name: Print CI override matrix job def
       env:
         GH_TOKEN: ${{ github.token }}
@@ -95,6 +89,7 @@ runs:
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
         GH_TOKEN: ${{ github.token }}
+        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
         CI: true
         # Dereferencing the command from an env var instead of a GHA input avoids issues with escaping
         # semicolons and other special characters (e.g. `-arch "60;70;80"`).
@@ -170,6 +165,12 @@ runs:
         source ci/util/artifacts/common.sh
         source ci/util/workflow/common.sh
 
+        # GH_TOKEN authenticates the gh CLI; GITHUB_TOKEN (optional) enables sccache.
+        sccache_token_env=()
+        if [[ -n "${FORK_GH_TOKEN}" ]]; then
+          sccache_token_env+=(--env "GITHUB_TOKEN=${FORK_GH_TOKEN}")
+        fi
+
         # Launch this container using the host's docker daemon
         ( # Subshell to contain the set -x log
           set -x
@@ -191,8 +192,8 @@ runs:
             --env "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" \
             --env "GITHUB_REPOSITORY=$GITHUB_REPOSITORY" \
             --env "GITHUB_STEP_SUMMARY=$GITHUB_STEP_SUMMARY" \
-            --env "GH_TOKEN=${{ github.token }}" \
-            --env "GITHUB_TOKEN=${GITHUB_TOKEN:-}" \
+            --env "GH_TOKEN=${GH_TOKEN}" \
+            "${sccache_token_env[@]}" \
             --env "HOST_WORKSPACE=${{github.workspace}}" \
             --env "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-}" \
             --env "JOB_ID=$JOB_ID" \

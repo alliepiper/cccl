@@ -37,3 +37,4 @@ jobs:
           runner:  ${{ matrix.runner }}
           cuda:    ${{ matrix.cuda }}
           host:    ${{ matrix.host }}
+          fork_sccache_auth_pat: ${{ github.repository != 'NVIDIA/cccl' && secrets.SCCACHE_AUTH_TOKEN || '' }}
