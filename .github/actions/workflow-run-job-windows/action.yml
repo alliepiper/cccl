@@ -39,6 +39,11 @@ runs:
         if ! gh auth status >/dev/null 2>&1; then
           printf '%s' "$GH_TOKEN" | gh auth login --with-token >/dev/null 2>&1 || true
         fi
+        # Install nv-gha-aws if not already installed
+        if ! gh nv-gha-aws --help >/dev/null 2>&1;
+        then
+          gh extension install nv-gha-runners/gh-nv-gha-aws || :
+        fi
         if gh nv-gha-aws --help >/dev/null 2>&1; then
           for org in nvidia rapids nv-legate nv-morpheus; do
             if gh nv-gha-aws org "$org" \
@@ -72,7 +77,7 @@ runs:
           echo "Minted AWS credentials for sccache."
           echo "minted=true" | tee -a "$GITHUB_OUTPUT"
 
-          rm -f aws.env || true
+          rm -f aws.env || :
         else
           echo "::warning::Failed to mint AWS credentials for sccache; will use local sccache."
           echo "minted=false" | tee -a "$GITHUB_OUTPUT"
