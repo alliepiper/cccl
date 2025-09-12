@@ -29,10 +29,15 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
       run: |
+        # Default output for downstream checks
+        echo "minted=false" | tee -a "$GITHUB_OUTPUT"
         if ! command -v gh >/dev/null 2>&1; then
-          echo "::warning::gh CLI not found; will use local sccache."
-          echo "minted=false" | tee -a "$GITHUB_OUTPUT"
+          echo "::notice::gh CLI not found; will use local sccache."
           exit 0
+        fi
+        # Ensure gh is authenticated with the provided token
+        if ! gh auth status >/dev/null 2>&1; then
+          printf '%s' "$GH_TOKEN" | gh auth login --with-token >/dev/null 2>&1 || true
         fi
         if gh nv-gha-aws --help >/dev/null 2>&1; then
           for org in nvidia rapids nv-legate nv-morpheus; do
