@@ -208,7 +208,6 @@ runs:
             "${github_tokens[@]}" \
             "${aws_role_arg[@]}" \
             --env "COMMAND=$COMMAND" \
-            --env "CCCL_DEBUG_SCCACHE=1" \
             --env "CI=true" \
             --env "SCCACHE_DIST_GH_SCOPES=" \
             --env "SCCACHE_S3_NO_CREDENTIALS=${SCCACHE_S3_NO_CREDENTIALS:-}" \
