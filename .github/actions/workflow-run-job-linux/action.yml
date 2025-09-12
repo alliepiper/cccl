@@ -20,10 +20,10 @@ inputs:
   host:
     description: "The host compiler to use when selecting a devcontainer."
     required: true
-  fork_sccache_auth_pat:
+  github_token:
     description: >-
-      Optional GitHub personal access token for enabling sccache from personal forks.
-      Requires the `repo`, `read:org`, and `gist` scopes.
+      Optional GitHub PAT with at least gist, repo (read), and read:org scopes
+      to enable sccache S3 auth on forks.
     required: false
     default: ""
 
@@ -55,18 +55,6 @@ runs:
       shell: bash --noprofile --norc -euo pipefail {0}
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
-    - name: Configure sccache
-      shell: bash --noprofile --norc -euo pipefail {0}
-      env:
-        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
-      run: |
-        if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
-          echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
-        else
-          echo "::warning::sccache remote cache is disabled for forks by default."
-          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and pass it via fork_sccache_auth_pat to enable remote sccache."
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
-        fi
     - name: Get AWS credentials for sccache bucket
       if: ${{ github.repository == 'NVIDIA/cccl' }}
       uses: aws-actions/configure-aws-credentials@v4
@@ -100,8 +88,7 @@ runs:
       id: run
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
-        GH_TOKEN: ${{ github.token }}
-        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
+        GH_TOKEN: ${{ inputs.github_token != '' && inputs.github_token || github.token }}
         CI: true
         # Dereferencing the command from an env var instead of a GHA input avoids issues with escaping
         # semicolons and other special characters (e.g. `-arch "60;70;80"`).
@@ -153,17 +140,15 @@ runs:
         bucket=rapids-sccache-devs
         region=us-east-2
         EOF
-
-        if [[ -n "${AWS_ACCESS_KEY_ID}" ]]; then
-          cat <<EOF > "${aws_dir}/credentials"
-          [default]
-          aws_access_key_id=$AWS_ACCESS_KEY_ID
-          aws_session_token=$AWS_SESSION_TOKEN
-          aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
-        EOF
-          chmod 0600 "${aws_dir}/credentials"
-        fi
         chmod 0664 "${aws_dir}/config"
+
+        cat <<EOF > "${aws_dir}/credentials"
+        [default]
+        aws_access_key_id=$AWS_ACCESS_KEY_ID
+        aws_session_token=$AWS_SESSION_TOKEN
+        aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
+        EOF
+        chmod 0600 "${aws_dir}/credentials"
 
         declare -a gpu_request=()
 
@@ -181,21 +166,6 @@ runs:
         source ci/util/artifacts/common.sh
         source ci/util/workflow/common.sh
 
-        declare -a github_tokens=()
-        if [[ -n "${FORK_GH_TOKEN}" ]]; then
-          github_tokens+=(--env GH_TOKEN="${FORK_GH_TOKEN}")
-        else
-          github_tokens+=(--env GH_TOKEN="${GH_TOKEN}")
-        fi
-
-        # Only clear AWS_ROLE_ARN when using the AWS auth action (NVIDIA/cccl only).
-        # For forks, keep the default role and re-use the devcontainer launch.sh's
-        # GH token based-auth.
-        aws_role_arg=()
-        if [[ "${GITHUB_REPOSITORY}" == "NVIDIA/cccl" ]]; then
-          aws_role_arg=(--env "AWS_ROLE_ARN=")
-        fi
-
         # Launch this container using the host's docker daemon
         ( # Subshell to contain the set -x log
           set -x
@@ -205,12 +175,10 @@ runs:
             --host $JOB_HOST \
             ${cuda_ext_request:-} \
             "${gpu_request[@]}" \
-            "${github_tokens[@]}" \
-            "${aws_role_arg[@]}" \
             --env "COMMAND=$COMMAND" \
             --env "CI=true" \
             --env "SCCACHE_DIST_GH_SCOPES=" \
-            --env "SCCACHE_S3_NO_CREDENTIALS=${SCCACHE_S3_NO_CREDENTIALS:-}" \
+            --env "GH_TOKEN=$GH_TOKEN" \
             --env "GITHUB_ENV=$GITHUB_ENV" \
             --env "GITHUB_SHA=$GITHUB_SHA" \
             --env "GITHUB_PATH=$GITHUB_PATH" \

@@ -11,10 +11,10 @@ inputs:
   image:
     description: "The Docker image to use."
     required: true
-  fork_sccache_auth_pat:
+  github_token:
     description: >-
-      Optional GitHub personal access token for enabling sccache from personal forks.
-      Requires the `repo`, `read:org`, and `gist` scopes.
+      Optional GitHub PAT with at least gist, repo (read), and read:org scopes
+      to enable sccache S3 auth on forks.
     required: false
     default: ""
 
@@ -24,7 +24,7 @@ runs:
     - name: Configure sccache
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
-        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
+        FORK_GH_TOKEN: ${{ inputs.github_token }}
       run: |
         if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
           echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
@@ -34,7 +34,7 @@ runs:
           echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
         else
           echo "::warning::sccache remote cache is disabled for forks by default."
-          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and pass it via fork_sccache_auth_pat to enable remote sccache."
+          echo "::warning::Create a GitHub token with gist, repo, and read:org scopes and pass it via 'github_token' to enable remote sccache."
           echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
         fi
     - name: Get AWS credentials for sccache bucket
@@ -62,15 +62,8 @@ runs:
     - name: Run command # Do not change this step's name, it is checked in parse-job-times.py
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
-        GH_TOKEN: ${{ github.token }}
-        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
+        GH_TOKEN: ${{ inputs.github_token != '' && inputs.github_token || github.token }}
       run: |
-        sccache_token_arg=()
-        if [[ -n "${FORK_GH_TOKEN}" ]]; then
-          sccache_token_arg+=(--env GH_TOKEN="${FORK_GH_TOKEN}")
-        else
-          sccache_token_arg+=(--env GH_TOKEN="${GH_TOKEN}")
-        fi
         docker run \
           --mount type=bind,source="${{steps.paths.outputs.HOST_REPO}}",target="${{steps.paths.outputs.MOUNT_REPO}}" \
           --workdir "${{steps.paths.outputs.MOUNT_REPO}}" \
@@ -79,7 +72,7 @@ runs:
           --env GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
           --env CI=true \
           --env SCCACHE_DIST_GH_SCOPES= \
-          "${sccache_token_arg[@]}" \
+          --env GH_TOKEN=${GH_TOKEN} \
           ${{ inputs.image }} \
           powershell -c "
             [System.Environment]::SetEnvironmentVariable('AWS_ACCESS_KEY_ID','${{env.AWS_ACCESS_KEY_ID}}');
