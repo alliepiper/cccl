@@ -22,23 +22,77 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Configure sccache
+    - name: Mint S3 creds for sccache (forks with PAT)
+      id: mint
+      if: ${{ github.repository != 'NVIDIA/cccl' && inputs.github_token != '' }}
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
-        FORK_GH_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
-        if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
-          echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
-          echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
-          echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
-          echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
+        if ! command -v gh >/dev/null 2>&1; then
+          echo "::notice::gh CLI not found; will use local sccache."
+          echo "minted=false" | tee -a "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if gh nv-gha-aws --help >/dev/null 2>&1; then
+          for org in nvidia rapids nv-legate nv-morpheus; do
+            if gh nv-gha-aws org "$org" \
+                 --profile default \
+                 --output env \
+                 --role-arn 'arn:aws:iam::279114543810:role/nv-gha-token-sccache-devs' \
+                 --aud 'sts.amazonaws.com' \
+                 --duration '43200' \
+                 --idp-url 'https://token.gha-runners.nvidia.com' \
+                 > aws.env 2>/dev/null; then
+              break
+            fi
+          done
+        fi
+        if [[ -s aws.env ]]; then
+          set -a
+          source aws.env
+          set +a
+
+          printf '::add-mask::%s\n' "$AWS_ACCESS_KEY_ID"
+          printf '::add-mask::%s\n' "$AWS_SECRET_ACCESS_KEY"
+          printf '::add-mask::%s\n' "$AWS_SESSION_TOKEN"
+
+          {
+            printf 'AWS_ACCESS_KEY_ID=%s\n' "$AWS_ACCESS_KEY_ID"
+            printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_SECRET_ACCESS_KEY"
+            printf 'AWS_SESSION_TOKEN=%s\n' "$AWS_SESSION_TOKEN"
+            printf 'SCCACHE_S3_NO_CREDENTIALS=false\n'
+          } >> "$GITHUB_ENV"
+
+          echo "Minted AWS credentials for sccache."
+          echo "minted=true" | tee -a "$GITHUB_OUTPUT"
+
+          rm -f aws.env || true
+        fi
+    - name: sccache auth setup hint (forks without PAT)
+      if: ${{ github.repository != 'NVIDIA/cccl' && inputs.github_token == '' }}
+      shell: bash --noprofile --norc -euo pipefail {0}
+      run: |
+        echo "::warning::sccache remote cache is disabled for forks by default."
+        echo "::warning::To enable it, create a GitHub PAT with gist, repo, and read:org scopes,"
+        echo "::warning::then add it as an Actions secret named 'SCCACHE_AUTH_TOKEN' in your fork"
+        echo "::warning::(Settings > Secrets and variables > Actions). The workflow will use it automatically."
+    - name: Configure sccache
+      shell: bash --noprofile --norc -euo pipefail {0}
+      run: |
+        echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
+        echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
+        echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
+        echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
+        if [[ "${{ github.repository }}" == "NVIDIA/cccl" ]]; then
           echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
         else
-          echo "::warning::sccache remote cache is disabled for forks by default."
-          echo "::warning::To enable it, create a GitHub PAT with gist, repo, and read:org scopes,"
-          echo "::warning::then add it as an Actions secret named 'SCCACHE_AUTH_TOKEN' in your fork"
-          echo "::warning::(Settings > Secrets and variables > Actions). The workflow will use it automatically."
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
+          # On forks, enable S3 only if the mint step succeeded (minted == true)
+          if [[ "${{ steps.mint.outputs.minted }}" == "true" ]]; then
+            echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
+          else
+            echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
+          fi
         fi
     - name: Get AWS credentials for sccache bucket
       if: ${{ github.repository == 'NVIDIA/cccl' }}
@@ -61,55 +115,6 @@ runs:
       run: |
         echo "HOST_REPO=${{ github.workspace }}\${{ github.event.repository.name }}".Replace('\', '/') | Out-File -FilePath $env:GITHUB_OUTPUT -Append
         echo "MOUNT_REPO=C:/${{ github.event.repository.name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        cat $env:GITHUB_OUTPUT
-    - name: Mint S3 creds for sccache (forks with PAT)
-      if: ${{ github.repository != 'NVIDIA/cccl' && inputs.github_token != '' }}
-      shell: bash --noprofile --norc -euo pipefail {0}
-      env:
-        GH_TOKEN: ${{ inputs.github_token }}
-      run: |
-        set -euo pipefail
-        if ! command -v gh >/dev/null 2>&1; then
-          echo "::warning::gh CLI not found; disabling remote s3 cache."
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "$GITHUB_ENV"
-          exit 0
-        fi
-        minted=false
-        if gh nv-gha-aws --help >/dev/null 2>&1; then
-          for org in nvidia rapids nv-legate nv-morpheus; do
-            if gh nv-gha-aws org "$org" \
-                 --profile default \
-                 --output env \
-                 --role-arn 'arn:aws:iam::279114543810:role/nv-gha-token-sccache-devs' \
-                 --aud 'sts.amazonaws.com' \
-                 --duration '43200' \
-                 --idp-url 'https://token.gha-runners.nvidia.com' \
-                 > aws.env 2>/dev/null; then
-              minted=true; break
-            fi
-          done
-        fi
-        if $minted && [[ -s aws.env ]]; then
-          set -a
-          source aws.env
-          set +a
-
-          printf '::add-mask::%s\n' "$AWS_ACCESS_KEY_ID"
-          printf '::add-mask::%s\n' "$AWS_SECRET_ACCESS_KEY"
-          printf '::add-mask::%s\n' "$AWS_SESSION_TOKEN"
-
-          {
-            printf 'AWS_ACCESS_KEY_ID=%s\n' "$AWS_ACCESS_KEY_ID"
-            printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_SECRET_ACCESS_KEY"
-            printf 'AWS_SESSION_TOKEN=%s\n' "$AWS_SESSION_TOKEN"
-            printf 'SCCACHE_S3_NO_CREDENTIALS=false\n'
-          } >> "$GITHUB_ENV"
-
-          rm -f aws.env || true
-        else
-          echo "::notice::Could not mint AWS creds with PAT; using local sccache."
-          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "$GITHUB_ENV"
-        fi
     - name: Run command # Do not change this step's name, it is checked in parse-job-times.py
       shell: bash --noprofile --norc -euo pipefail {0}
       env:
