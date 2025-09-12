@@ -34,3 +34,4 @@ jobs:
           id:      ${{ matrix.id }}
           command: ${{ matrix.command }}
           image:   ${{ matrix.image }}
+          fork_sccache_auth_pat: ${{ github.repository != 'NVIDIA/cccl' && secrets.SCCACHE_AUTH_TOKEN || '' }}
