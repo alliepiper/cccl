@@ -55,7 +55,20 @@ runs:
       shell: bash --noprofile --norc -euo pipefail {0}
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
+    - name: Configure sccache
+      shell: bash --noprofile --norc -euo pipefail {0}
+      env:
+        FORK_GH_TOKEN: ${{ inputs.fork_sccache_auth_pat }}
+      run: |
+        if [[ "${{ github.repository }}" == "NVIDIA/cccl" || -n "${FORK_GH_TOKEN}" ]]; then
+          echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
+        else
+          echo "::warning::sccache remote cache is disabled for forks by default."
+          echo "::warning::Create a GitHub PAT with gist, repo, read:org scopes and pass it via fork_sccache_auth_pat to enable remote sccache."
+          echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
+        fi
     - name: Get AWS credentials for sccache bucket
+      if: ${{ github.repository == 'NVIDIA/cccl' }}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
@@ -138,14 +151,15 @@ runs:
         region=us-east-2
         EOF
 
-        cat <<EOF > "${aws_dir}/credentials"
-        [default]
-        aws_access_key_id=$AWS_ACCESS_KEY_ID
-        aws_session_token=$AWS_SESSION_TOKEN
-        aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
-        EOF
-
-        chmod 0600 "${aws_dir}/credentials"
+        if [[ -n "${AWS_ACCESS_KEY_ID}" ]]; then
+          cat <<EOF > "${aws_dir}/credentials"
+          [default]
+          aws_access_key_id=$AWS_ACCESS_KEY_ID
+          aws_session_token=$AWS_SESSION_TOKEN
+          aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
+          EOF
+          chmod 0600 "${aws_dir}/credentials"
+        fi
         chmod 0664 "${aws_dir}/config"
 
         declare -a gpu_request=()
