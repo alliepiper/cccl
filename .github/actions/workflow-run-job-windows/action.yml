@@ -30,7 +30,7 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
       run: |
         if ! command -v gh >/dev/null 2>&1; then
-          echo "::notice::gh CLI not found; will use local sccache."
+          echo "::warning::gh CLI not found; will use local sccache."
           echo "minted=false" | tee -a "$GITHUB_OUTPUT"
           exit 0
         fi
@@ -68,6 +68,9 @@ runs:
           echo "minted=true" | tee -a "$GITHUB_OUTPUT"
 
           rm -f aws.env || true
+        else
+          echo "::warning::Failed to mint AWS credentials for sccache; will use local sccache."
+          echo "minted=false" | tee -a "$GITHUB_OUTPUT"
         fi
     - name: sccache auth setup hint (forks without PAT)
       if: ${{ github.repository != 'NVIDIA/cccl' && inputs.github_token == '' }}
@@ -80,17 +83,22 @@ runs:
     - name: Configure sccache
       shell: bash --noprofile --norc -euo pipefail {0}
       run: |
-        echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
-        echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
         echo "SCCACHE_IDLE_TIMEOUT=0" | tee -a "${GITHUB_ENV}"
         echo "SCCACHE_S3_USE_SSL=true" | tee -a "${GITHUB_ENV}"
         if [[ "${{ github.repository }}" == "NVIDIA/cccl" ]]; then
+          echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
+          echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
           echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
         else
           # On forks, enable S3 only if the mint step succeeded (minted == true)
           if [[ "${{ steps.mint.outputs.minted }}" == "true" ]]; then
+            echo "SCCACHE_BUCKET=rapids-sccache-devs" | tee -a "${GITHUB_ENV}"
+            echo "SCCACHE_REGION=us-east-2" | tee -a "${GITHUB_ENV}"
             echo "SCCACHE_S3_NO_CREDENTIALS=false" | tee -a "${GITHUB_ENV}"
           else
+            # Force local cache: clear bucket/region and set NO_CREDENTIALS
+            echo "SCCACHE_BUCKET=" | tee -a "${GITHUB_ENV}"
+            echo "SCCACHE_REGION=" | tee -a "${GITHUB_ENV}"
             echo "SCCACHE_S3_NO_CREDENTIALS=true" | tee -a "${GITHUB_ENV}"
           fi
         fi
