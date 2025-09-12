@@ -23,7 +23,8 @@ inputs:
   github_token:
     description: >-
       Optional GitHub PAT with at least gist, repo (read), and read:org scopes
-      to enable sccache S3 auth on forks.
+      to enable sccache S3 auth on forks. Typically supplied via the
+      'SCCACHE_AUTH_TOKEN' repository secret in forks.
     required: false
     default: ""
 
