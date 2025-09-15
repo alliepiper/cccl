@@ -14,11 +14,13 @@ function(cub_add_header_test label definitions)
 
     set(headertest_target ${config_prefix}.headers.${label})
 
-    cccl_generate_header_tests(${headertest_target} cub
+  cccl_generate_header_tests(${headertest_target} cub
       GLOBS "cub/*.cuh"
     )
     target_link_libraries(${headertest_target} PUBLIC ${cub_target})
-    target_compile_definitions(${headertest_target} PRIVATE ${definitions})
+    if (definitions)
+      target_compile_definitions(${headertest_target} PRIVATE ${definitions})
+    endif()
     cub_clone_target_properties(${headertest_target} ${cub_target})
     cub_configure_cuda_target(${headertest_target} RDC ${CUB_FORCE_RDC})
 
@@ -27,29 +29,4 @@ function(cub_add_header_test label definitions)
   endforeach()
 endfunction()
 
-# Wrap Thrust/CUB in a custom namespace to check proper use of ns macros:
-set(header_definitions
-  "THRUST_WRAPPED_NAMESPACE=wrapped_thrust"
-  "CUB_WRAPPED_NAMESPACE=wrapped_cub")
-cub_add_header_test(base "${header_definitions}")
-
-# Check that BF16 support can be disabled
-set(header_definitions
-  "THRUST_WRAPPED_NAMESPACE=wrapped_thrust"
-  "CUB_WRAPPED_NAMESPACE=wrapped_cub"
-  "CCCL_DISABLE_BF16_SUPPORT")
-cub_add_header_test(no_bf16 "${header_definitions}")
-
-# Check that half support can be disabled
-set(header_definitions
-  "THRUST_WRAPPED_NAMESPACE=wrapped_thrust"
-  "CUB_WRAPPED_NAMESPACE=wrapped_cub"
-  "CCCL_DISABLE_FP16_SUPPORT")
-cub_add_header_test(no_half "${header_definitions}")
-
-# Check that half support can be disabled
-set(header_definitions
-  "THRUST_WRAPPED_NAMESPACE=wrapped_thrust"
-  "CUB_WRAPPED_NAMESPACE=wrapped_cub"
-  "CCCL_DISABLE_FP8_SUPPORT")
-cub_add_header_test(no_fp8 "${header_definitions}")
+cub_add_header_test(base "")

@@ -114,6 +114,7 @@
         "CCCL_ENABLE_LIBCUDACXX": true,
         "CCCL_IGNORE_DEPRECATED_CPP_DIALECT": true,
         "LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS": false,
+        "LIBCUDACXX_ENABLE_HEADER_TESTING": false,
         "libcudacxx_ENABLE_CODEGEN": true,
         "LIBCUDACXX_ENABLE_CUDA": false
       }
@@ -124,7 +125,8 @@
       "inherits": "base",
       "cacheVariables": {
         "CCCL_ENABLE_LIBCUDACXX": true,
-        "LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS": true
+        "LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS": true,
+        "LIBCUDACXX_ENABLE_HEADER_TESTING": true
       }
     },
     {
@@ -145,6 +147,18 @@
         "CMAKE_CXX_STANDARD": "20",
         "CMAKE_CUDA_STANDARD": "20",
         "LIBCUDACXX_TEST_STANDARD_VER": "c++20"
+      }
+    },
+    {
+      "name": "libcudacxx-headers",
+      "displayName": "libcu++: headers",
+      "inherits": "base",
+      "cacheVariables": {
+        "CCCL_ENABLE_LIBCUDACXX": true,
+        "LIBCUDACXX_ENABLE_HEADER_TESTING": true,
+        "LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS": false,
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CUDA_STANDARD": "20"
       }
     },
     {
@@ -205,6 +219,19 @@
       }
     },
     {
+      "name": "cub-headers",
+      "displayName": "CUB: headers",
+      "inherits": "cub-base",
+      "cacheVariables": {
+        "CUB_ENABLE_TESTING": false,
+        "CUB_ENABLE_EXAMPLES": false,
+        "CUB_ENABLE_DIALECT_CPP20": true,
+        "CUB_ENABLE_HEADER_TESTING": true,
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CUDA_STANDARD": "20"
+      }
+    },
+    {
       "name": "thrust-base",
       "hidden": true,
       "inherits": "base",
@@ -232,6 +259,20 @@
       "displayName": "Thrust: C++20",
       "inherits": "thrust-base",
       "cacheVariables": {
+        "THRUST_MULTICONFIG_ENABLE_DIALECT_CPP20": true
+      }
+    },
+    {
+      "name": "thrust-headers",
+      "displayName": "Thrust: headers",
+      "inherits": "thrust-base",
+      "cacheVariables": {
+        "THRUST_ENABLE_HEADER_TESTING": true,
+        "THRUST_ENABLE_TESTING": false,
+        "THRUST_ENABLE_EXAMPLES": false,
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CUDA_STANDARD": "20",
+        "THRUST_MULTICONFIG_ENABLE_DIALECT_CPP17": false,
         "THRUST_MULTICONFIG_ENABLE_DIALECT_CPP20": true
       }
     },
@@ -414,6 +455,10 @@
       ]
     },
     {
+      "name": "libcudacxx-headers",
+      "configurePreset": "libcudacxx-headers"
+    },
+    {
       "name": "cub-cpp17",
       "configurePreset": "cub-cpp17"
     },
@@ -422,12 +467,20 @@
       "configurePreset": "cub-cpp20"
     },
     {
+      "name": "cub-headers",
+      "configurePreset": "cub-headers"
+    },
+    {
       "name": "thrust-cpp17",
       "configurePreset": "thrust-cpp17"
     },
     {
       "name": "thrust-cpp20",
       "configurePreset": "thrust-cpp20"
+    },
+    {
+      "name": "thrust-headers",
+      "configurePreset": "thrust-headers"
     },
     {
       "name": "cudax-cpp17",

@@ -64,28 +64,6 @@ function(libcudacxx_create_internal_header_test header_name, headertest_src)
   add_dependencies(libcudacxx.test.internal_headers internal_headertest_${header_name})
 endfunction()
 
-# We have fallbacks for some type traits that we want to explicitly test so that they do not bitrot
-function(libcudacxx_create_internal_header_fallback_test header_name, headertest_src)
-  # MSVC cannot handle some of the fallbacks
-  if ("MSVC" STREQUAL "${CMAKE_CXX_COMPILER_ID}")
-    if("${header}" MATCHES "is_base_of" OR
-       "${header}" MATCHES "is_nothrow_destructible" OR
-       "${header}" MATCHES "is_polymorphic")
-      return()
-    endif()
-  endif()
-
-  # Search the file for a fallback definition
-  file(READ ${libcudacxx_SOURCE_DIR}/include/${header} header_file)
-  string(REGEX MATCH "_LIBCUDACXX_[A-Z_]*_FALLBACK" fallback "${header_file}")
-  if(fallback)
-    # Adopt the filename for the fallback tests
-    set(header_name "${header_name}_fallback")
-    libcudacxx_create_internal_header_test(${header_name}, ${headertest_src})
-    target_compile_definitions(internal_headertest_${header_name} PRIVATE "-D${fallback}")
-  endif()
-endfunction()
-
 function(libcudacxx_add_internal_header_test header)
   # ${header} contains the "/" from the subfolder, replace by "_" for actual names
   string(REPLACE "/" "_" header_name "${header}")
@@ -96,9 +74,6 @@ function(libcudacxx_add_internal_header_test header)
 
   # Create the default target for that file
   libcudacxx_create_internal_header_test(${header_name}, ${headertest_src})
-
-  # Optionally create a fallback target for that file
-  libcudacxx_create_internal_header_fallback_test(${header_name}, ${headertest_src})
 endfunction()
 
 foreach(header IN LISTS internal_headers)

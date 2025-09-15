@@ -6,7 +6,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/build_common.sh"
 
 print_environment_details
 
-PRESET="thrust-cpp$CXX_STANDARD"
+if [[ "${CXX_STANDARD}" == "headers" ]]; then
+    PRESET="thrust-headers"
+else
+    PRESET="thrust-cpp$CXX_STANDARD"
+fi
 
 CMAKE_OPTIONS=""
 

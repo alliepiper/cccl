@@ -6,6 +6,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/build_common.sh"
 
 print_environment_details
 
+HEADER_ONLY=false
+if [[ "${CXX_STANDARD}" == "headers" ]]; then
+    HEADER_ONLY=true
+fi
+
 ENABLE_CCCL_BENCHMARKS="false"
 ENABLE_CUB_RDC="false"
 
@@ -14,9 +19,11 @@ if [[ "$CUDA_COMPILER" == *nvcc* ]]; then
     NVCC_VERSION=$($CUDA_COMPILER --version | grep release | awk '{print $6}' | cut -c2-)
     if [[ -n "${DISABLE_CUB_BENCHMARKS}" ]]; then
         echo "Benchmarks have been forcefully disabled."
-    else
+    elif ! $HEADER_ONLY; then
         ENABLE_CCCL_BENCHMARKS="true"
         echo "nvcc version is $NVCC_VERSION. Building CUB benchmarks."
+    else
+        echo "nvcc version is $NVCC_VERSION. Skipping benchmark builds for header-only configuration."
     fi
 else
     echo "Not building with NVCC, disabling RDC and benchmarks."
@@ -26,7 +33,11 @@ if [[ "$HOST_COMPILER" == *icpc* || "$HOST_COMPILER" == *nvhpc* ]]; then
     ENABLE_CCCL_BENCHMARKS="false"
 fi
 
-PRESET="cub-cpp$CXX_STANDARD"
+if $HEADER_ONLY; then
+    PRESET="cub-headers"
+else
+    PRESET="cub-cpp$CXX_STANDARD"
+fi
 
 CMAKE_OPTIONS="
     -DCCCL_ENABLE_BENCHMARKS="$ENABLE_CCCL_BENCHMARKS"\

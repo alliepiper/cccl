@@ -8,6 +8,9 @@ workflows:
   #   - {jobs: ['test'], project: 'thrust', std: 17, ctk: '12.X', cxx: ['gcc12', 'clang16']}
   #
   override:
+    - {jobs: ['build'], project: 'thrust',     std: 'headers', ctk: '13.X', cxx: 'gcc'}
+    - {jobs: ['build'], project: 'cub',        std: 'headers', ctk: '13.X', cxx: 'gcc'}
+    - {jobs: ['build'], project: 'libcudacxx', std: 'headers', ctk: '13.X', cxx: 'gcc'}
 
   pull_request:
     # Old CTK: Oldest/newest supported host compilers:

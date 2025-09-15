@@ -36,8 +36,10 @@ if (LIBCUDACXX_ENABLE_CUDA)
   enable_language(CUDA)
 endif ()
 
+option(LIBCUDACXX_ENABLE_HEADER_TESTING "Enable libcu++ header tests." ON)
 option(LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS "Enable libcu++ tests." ON)
-if (NOT LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS)
+
+if (NOT LIBCUDACXX_ENABLE_HEADER_TESTING AND NOT LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS)
   return()
 endif()
 
@@ -47,10 +49,16 @@ enable_testing()
 include(cmake/LibcudacxxBuildCompilerTargets.cmake)
 libcudacxx_build_compiler_targets()
 
-# Test all public and internal headers
-include(cmake/LibcudacxxInternalHeaderTesting.cmake)
-include(cmake/LibcudacxxPublicHeaderTesting.cmake)
-include(cmake/LibcudacxxPublicHeaderTestingHost.cmake)
+if (LIBCUDACXX_ENABLE_HEADER_TESTING)
+  # Test all public and internal headers
+  include(cmake/LibcudacxxInternalHeaderTesting.cmake)
+  include(cmake/LibcudacxxPublicHeaderTesting.cmake)
+  include(cmake/LibcudacxxPublicHeaderTestingHost.cmake)
+endif()
+
+if (NOT LIBCUDACXX_ENABLE_LIBCUDACXX_TESTS)
+  return()
+endif()
 
 find_package (Python COMPONENTS Interpreter)
 if (NOT Python_Interpreter_FOUND)

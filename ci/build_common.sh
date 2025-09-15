@@ -24,7 +24,7 @@ CONFIGURE_ONLY=false
 function usage {
     echo "Usage: $0 [OPTIONS]"
     echo
-    echo "The PARALLEL_LEVEL environment variable controls the amount of build parallelism. Default is the number of cores."
+    echo "Build parallelism is forced to PARALLEL_LEVEL=1 to provide consistent timing metrics."
     echo
     echo "Options:"
     echo "  -v/-verbose: enable shell echo for debugging"
@@ -36,8 +36,6 @@ function usage {
     echo "  -cmake-options: Additional options to pass to CMake"
     echo
     echo "Examples:"
-    echo "  $ PARALLEL_LEVEL=8 $0"
-    echo "  $ PARALLEL_LEVEL=8 $0 -cxx g++-9"
     echo "  $ $0 -cxx clang++-8"
     echo "  $ $0 -configure -arch 80"
     echo "  $ $0 -cxx g++-8 -std 14 -arch 80-real -v -cuda /usr/local/bin/nvcc"
@@ -125,7 +123,8 @@ check_required_dependencies
 # Begin processing unsets after option parsing
 set -u
 
-readonly PARALLEL_LEVEL=${PARALLEL_LEVEL:=$(nproc)}
+readonly PARALLEL_LEVEL=1
+export PARALLEL_LEVEL
 
 if [ -z ${CCCL_BUILD_INFIX+x} ]; then
     CCCL_BUILD_INFIX=""
@@ -311,6 +310,15 @@ function build_preset() {
         end_group
     else
       echo $minimal_sccache_stats
+    fi
+
+    local ninja_log="${preset_dir}/.ninja_log"
+    if [[ -f "${ninja_log}" ]]; then
+        begin_group "🕒  Ninja compile times"
+        if ! (cd .. && cmake -DLOGFILE="${ninja_log}" -P "cmake/PrintNinjaBuildTimes.cmake"); then
+            echo "Warning: failed to parse ninja build times." >&2
+        fi
+        end_group "🕒  Ninja compile times"
     fi
 
     return $status

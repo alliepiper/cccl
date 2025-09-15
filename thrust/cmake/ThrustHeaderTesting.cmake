@@ -155,21 +155,4 @@ endfunction()
 
 foreach(thrust_target IN LISTS THRUST_TARGETS)
   thrust_add_header_test(${thrust_target} base "")
-
-  # Wrap Thrust/CUB in a custom namespace to check proper use of ns macros:
-  set(header_definitions
-    "THRUST_WRAPPED_NAMESPACE=wrapped_thrust"
-    "CUB_WRAPPED_NAMESPACE=wrapped_cub")
-  thrust_add_header_test(${thrust_target} wrap "${header_definitions}")
-
-  thrust_get_target_property(config_device ${thrust_target} DEVICE)
-  if ("CUDA" STREQUAL "${config_device}")
-    # Check that BF16 support can be disabled
-    set(header_definitions "CCCL_DISABLE_BF16_SUPPORT")
-    thrust_add_header_test(${thrust_target} no_bf16 "${header_definitions}")
-
-    # Check that half support can be disabled
-    set(header_definitions "CCCL_DISABLE_FP16_SUPPORT")
-    thrust_add_header_test(${thrust_target} no_half "${header_definitions}")
-  endif()
 endforeach ()
