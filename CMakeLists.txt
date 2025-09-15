@@ -19,6 +19,15 @@ project(CCCL LANGUAGES CXX)
 
 include(cmake/CCCLInstallRules.cmake)
 
+# Disable any compiler launchers such as sccache when running in CI.
+if (DEFINED ENV{CI} AND "$ENV{CI}")
+  foreach (language IN ITEMS C CXX CUDA)
+    set(launcher_var "CMAKE_${language}_COMPILER_LAUNCHER")
+    unset(${launcher_var} CACHE)
+    unset(${launcher_var})
+  endforeach()
+endif()
+
 # Support adding CCCL to a parent project via add_subdirectory.
 include(cmake/CCCLAddSubdirHelper.cmake) # Always include, this is used by subprojects as well.
 if (NOT CCCL_TOPLEVEL_PROJECT)

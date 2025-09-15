@@ -56,13 +56,6 @@ runs:
       shell: bash --noprofile --norc -euo pipefail {0}
       run: |
         echo "::add-matcher::${{github.workspace}}/.github/problem-matchers/problem-matcher.json"
-    - name: Get AWS credentials for sccache bucket
-      if: ${{ github.repository == 'NVIDIA/cccl' }}
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: arn:aws:iam::279114543810:role/gha-oidc-NVIDIA
-        aws-region: us-east-2
-        role-duration-seconds: 43200 # 12 hours
     - name: Print CI override matrix job def
       env:
         GH_TOKEN: ${{ github.token }}
@@ -94,9 +87,6 @@ runs:
         # Dereferencing the command from an env var instead of a GHA input avoids issues with escaping
         # semicolons and other special characters (e.g. `-arch "60;70;80"`).
         COMMAND: "${{inputs.command}}"
-        AWS_ACCESS_KEY_ID: "${{env.AWS_ACCESS_KEY_ID}}"
-        AWS_SESSION_TOKEN: "${{env.AWS_SESSION_TOKEN}}"
-        AWS_SECRET_ACCESS_KEY: "${{env.AWS_SECRET_ACCESS_KEY}}"
       run: |
         cat <<'EOF' > ci.sh
         #! /usr/bin/env bash
@@ -132,33 +122,6 @@ runs:
 
         chmod +x ci.sh
 
-        # The devcontainer will mount this path to the home directory:
-        readonly aws_dir="${{github.workspace}}/.aws"
-        mkdir "${aws_dir}";
-
-        cat <<EOF > "${aws_dir}/config"
-        [default]
-        bucket=rapids-sccache-devs
-        region=us-east-2
-        EOF
-
-        cat <<EOF > "${aws_dir}/credentials"
-        [default]
-        aws_access_key_id=$AWS_ACCESS_KEY_ID
-        aws_session_token=$AWS_SESSION_TOKEN
-        aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
-        EOF
-
-        chmod 0600 "${aws_dir}/credentials"
-        chmod 0664 "${aws_dir}/config"
-
-        # Clear the ARN when using the pre-minted aws creds on the main repo.
-        # Leave this on forks, as they'll need it to authenticate using the
-        # devcontainer-utils scripting via GH_TOKEN.
-        if [[ "$GITHUB_REPOSITORY" == "NVIDIA/cccl" ]]; then
-          set aws_arn="--env AWS_ROLE_ARN="
-        fi
-
         declare -a gpu_request=()
 
         # Explicitly pass which GPU to use if on a GPU runner
@@ -184,7 +147,6 @@ runs:
             --host $JOB_HOST \
             ${cuda_ext_request:-} \
             "${gpu_request[@]}" \
-            ${aws_arn:-} \
             --env "COMMAND=$COMMAND" \
             --env "CI=true" \
             --env "SCCACHE_DIST_GH_SCOPES=" \
