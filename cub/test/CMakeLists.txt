@@ -100,14 +100,7 @@ endfunction()
 # test_src: The source file that implements the test.
 # cub_target: The reference cub target with configuration information.
 #
-function(
-  cub_add_test
-  target_name_var
-  test_name
-  test_src
-  cub_target
-  launcher_id
-)
+function(cub_add_test target_name_var test_name test_src cub_target launcher_id)
   cub_get_target_property(config_prefix ${cub_target} PREFIX)
   cub_get_target_property(config_dialect ${cub_target} DIALECT)
 

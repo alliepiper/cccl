@@ -59,14 +59,7 @@ define_property(
   FULL_DOCS "A prefix describing the config, eg. 'thrust.cpp.cuda.cpp14'."
 )
 
-function(
-  thrust_set_target_properties
-  target_name
-  host
-  device
-  dialect
-  prefix
-)
+function(thrust_set_target_properties target_name host device dialect prefix)
   cccl_configure_target(${target_name} DIALECT ${dialect})
 
   set_target_properties(

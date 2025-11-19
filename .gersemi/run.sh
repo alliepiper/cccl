@@ -10,6 +10,8 @@ if ! command -v gersemi &> /dev/null; then
   exit 1
 fi
 
+gersemi --version | head -n1
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 
@@ -36,4 +38,5 @@ for file in "${tracked_files[@]}"; do
     total_lines=$((total_lines + line_count))
   fi
 done
+
 echo "Formatted ${#tracked_files[@]} files with a total of ${total_lines} lines."
