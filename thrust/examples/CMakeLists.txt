@@ -4,22 +4,13 @@ option(
   "Check example output with the LLVM FileCheck utility."
   OFF
 )
-set(filecheck_data_path "${Thrust_SOURCE_DIR}/internal/test")
+set(filecheck_data_path "${Thrust_SOURCE_DIR}/examples/filecheck_data")
 
 if (THRUST_ENABLE_EXAMPLE_FILECHECK)
-  # TODO this should go into a find module
   find_program(
     THRUST_FILECHECK_EXECUTABLE
     DOC "Path to the LLVM FileCheck utility."
-    NAMES
-      FileCheck
-      FileCheck-3.9
-      FileCheck-4.0
-      FileCheck-5.0
-      FileCheck-6.0
-      FileCheck-7
-      FileCheck-8
-      FileCheck-9
+    NAMES FileCheck
   )
 
   if (NOT THRUST_FILECHECK_EXECUTABLE)
@@ -124,7 +115,7 @@ function(
   add_test(
     NAME ${example_target}
     # gersemi: off
-    COMMAND
+    COMMAND # Extra complexity here is to run FileCheck on the output:
       "${CMAKE_COMMAND}"
         "-DEXAMPLE_EXECUTABLE=$<TARGET_FILE:${example_target}>"
         "-DFILECHECK_ENABLED=${THRUST_ENABLE_EXAMPLE_FILECHECK}"
