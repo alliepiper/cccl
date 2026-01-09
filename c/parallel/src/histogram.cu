@@ -405,7 +405,7 @@ __device__ consteval auto& policy_generator() {{
       cub::detail::ptx_json::parse("device_histogram_policy", {result.data.get(), result.size});
 
     using cub::detail::RuntimeHistogramAgentPolicy;
-    auto histogram_policy = RuntimeHistogramAgentPolicy::from_json(runtime_policy, "HistogramPolicy");
+    auto histogram = RuntimeHistogramAgentPolicy::from_json(runtime_policy, "HistogramPolicy");
 
     build_ptr->cc                  = cc;
     build_ptr->cubin               = (void*) result.data.release();
@@ -416,7 +416,7 @@ __device__ consteval auto& policy_generator() {{
     build_ptr->num_active_channels = num_active_channels;
     build_ptr->may_overflow = false; // This is set in cccl_device_histogram_even_impl so that kernel source can access
                                      // it later.
-    build_ptr->runtime_policy = new histogram::histogram_runtime_tuning_policy{histogram_policy};
+    build_ptr->runtime_policy = new histogram::histogram_runtime_tuning_policy{histogram};
   }
   catch (const std::exception& exc)
   {

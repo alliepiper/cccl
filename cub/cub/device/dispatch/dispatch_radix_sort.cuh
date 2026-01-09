@@ -117,17 +117,17 @@ struct policy_selector_from_hub
         p_t::SCAN_ALGORITHM};
     };
 
-    const auto histogram_policy = [] {
+    const auto histogram = [] {
       using p = typename active_policy::HistogramPolicy;
       return radix_sort_histogram_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::NUM_PARTS, p::RADIX_BITS};
     }();
 
-    const auto exclusive_sum_policy = [] {
+    const auto exclusive_sum = [] {
       using p = typename active_policy::ExclusiveSumPolicy;
       return radix_sort_exclusive_sum_policy{p::BLOCK_THREADS, p::RADIX_BITS};
     }();
 
-    const auto onesweep_policy = [] {
+    const auto onesweep = [] {
       using p = typename active_policy::OnesweepPolicy;
       return radix_sort_onesweep_policy{
         p::BLOCK_THREADS,
@@ -139,9 +139,9 @@ struct policy_selector_from_hub
         p::STORE_ALGORITHM};
     }();
 
-    const auto scan_policy = [] {
+    const auto scan = [] {
       using p = typename active_policy::ScanPolicy;
-      return radix_sort::scan_policy{
+      return scan_policy{
         p::BLOCK_THREADS,
         p::ITEMS_PER_THREAD,
         p::LOAD_ALGORITHM,
@@ -150,37 +150,37 @@ struct policy_selector_from_hub
         p::SCAN_ALGORITHM};
     }();
 
-    const auto downsweep_policy     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
-    const auto alt_downsweep_policy = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
+    const auto downsweep     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
+    const auto alt_downsweep = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
 
     const auto upsweep_policy = [] {
       using p = typename active_policy::UpsweepPolicy;
       return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
     }();
 
-    const auto alt_upsweep_policy = [] {
+    const auto alt_upsweep = [] {
       using p = typename active_policy::AltUpsweepPolicy;
       return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
     }();
 
-    const auto single_tile_policy   = convert_downsweep_policy(typename active_policy::SingleTilePolicy{});
-    const auto segmented_policy     = convert_downsweep_policy(typename active_policy::SegmentedPolicy{});
-    const auto alt_segmented_policy = convert_downsweep_policy(typename active_policy::AltSegmentedPolicy{});
+    const auto single_tile   = convert_downsweep_policy(typename active_policy::SingleTilePolicy{});
+    const auto segmented     = convert_downsweep_policy(typename active_policy::SegmentedPolicy{});
+    const auto alt_segmented = convert_downsweep_policy(typename active_policy::AltSegmentedPolicy{});
 
     return radix_sort_policy{
       active_policy::ONESWEEP,
       active_policy::ONESWEEP_RADIX_BITS,
-      histogram_policy,
-      exclusive_sum_policy,
-      onesweep_policy,
-      scan_policy,
-      downsweep_policy,
-      alt_downsweep_policy,
+      histogram,
+      exclusive_sum,
+      onesweep,
+      scan,
+      downsweep,
+      alt_downsweep,
       upsweep_policy,
-      alt_upsweep_policy,
-      single_tile_policy,
-      segmented_policy,
-      alt_segmented_policy};
+      alt_upsweep,
+      single_tile,
+      segmented,
+      alt_segmented};
   }
 };
 
@@ -191,28 +191,28 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto convert_policy(WrappedActivePolicyT 
 
   p.use_onesweep = policy.IsOnesweep();
 
-  p.onesweep_policy.radix_bits       = policy.RadixBits(policy.Onesweep());
-  p.onesweep_policy.items_per_thread = policy.Onesweep().ItemsPerThread();
-  p.onesweep_policy.block_threads    = policy.Onesweep().BlockThreads();
+  p.onesweep.radix_bits       = policy.RadixBits(policy.Onesweep());
+  p.onesweep.items_per_thread = policy.Onesweep().ItemsPerThread();
+  p.onesweep.block_threads    = policy.Onesweep().BlockThreads();
 
-  p.histogram_policy.block_threads    = policy.Histogram().BlockThreads();
-  p.histogram_policy.items_per_thread = policy.Histogram().ItemsPerThread();
-  p.histogram_policy.radix_bits       = policy.RadixBits(policy.Histogram());
+  p.histogram.block_threads    = policy.Histogram().BlockThreads();
+  p.histogram.items_per_thread = policy.Histogram().ItemsPerThread();
+  p.histogram.radix_bits       = policy.RadixBits(policy.Histogram());
 
-  p.exclusive_sum_policy.block_threads = policy.BlockThreads(policy.ExclusiveSum());
-  p.exclusive_sum_policy.radix_bits    = policy.RadixBits(policy.ExclusiveSum());
+  p.exclusive_sum.block_threads = policy.BlockThreads(policy.ExclusiveSum());
+  p.exclusive_sum.radix_bits    = policy.RadixBits(policy.ExclusiveSum());
 
-  p.single_tile_policy.block_threads    = policy.SingleTile().BlockThreads();
-  p.single_tile_policy.items_per_thread = policy.SingleTile().ItemsPerThread();
-  p.single_tile_policy.radix_bits       = policy.RadixBits(policy.SingleTile());
+  p.single_tile.block_threads    = policy.SingleTile().BlockThreads();
+  p.single_tile.items_per_thread = policy.SingleTile().ItemsPerThread();
+  p.single_tile.radix_bits       = policy.RadixBits(policy.SingleTile());
 
   p.upsweep_policy.block_threads    = policy.Upsweep().BlockThreads();
   p.upsweep_policy.items_per_thread = policy.Upsweep().ItemsPerThread();
 
-  p.scan_policy.block_threads    = policy.Scan().BlockThreads();
-  p.scan_policy.items_per_thread = policy.Scan().ItemsPerThread();
+  p.scan.block_threads    = policy.Scan().BlockThreads();
+  p.scan.items_per_thread = policy.Scan().ItemsPerThread();
 
-  p.downsweep_policy.items_per_thread = policy.DownSweep().ItemsPerThread();
+  p.downsweep.items_per_thread = policy.DownSweep().ItemsPerThread();
 
   return p;
 }
@@ -372,10 +372,10 @@ private:
     using AtomicOffsetT  = PortionOffsetT;
 
     // compute temporary storage size
-    const int RADIX_BITS                = policy.onesweep_policy.radix_bits;
+    const int RADIX_BITS                = policy.onesweep.radix_bits;
     const int RADIX_DIGITS              = 1 << RADIX_BITS;
-    const int ONESWEEP_ITEMS_PER_THREAD = policy.onesweep_policy.items_per_thread;
-    const int ONESWEEP_BLOCK_THREADS    = policy.onesweep_policy.block_threads;
+    const int ONESWEEP_ITEMS_PER_THREAD = policy.onesweep.items_per_thread;
+    const int ONESWEEP_BLOCK_THREADS    = policy.onesweep.block_threads;
     const int ONESWEEP_TILE_ITEMS       = ONESWEEP_ITEMS_PER_THREAD * ONESWEEP_BLOCK_THREADS;
     // portions handle inputs with >=2**30 elements, due to the way lookback works
     // for testing purposes, one portion is <= 2**28 elements
@@ -443,7 +443,7 @@ private:
       return error;
     }
 
-    const int HISTO_BLOCK_THREADS = policy.histogram_policy.block_threads;
+    const int HISTO_BLOCK_THREADS = policy.histogram.block_threads;
     int histo_blocks_per_sm       = 1;
     auto histogram_kernel         = kernel_source.RadixSortHistogramKernel();
 
@@ -460,9 +460,9 @@ private:
             histo_blocks_per_sm * num_sms,
             HISTO_BLOCK_THREADS,
             reinterpret_cast<long long>(stream),
-            policy.histogram_policy.items_per_thread,
+            policy.histogram.items_per_thread,
             histo_blocks_per_sm,
-            policy.histogram_policy.radix_bits);
+            policy.histogram.radix_bits);
 #endif
 
     if (const auto error = CubDebug(
@@ -478,7 +478,7 @@ private:
     }
 
     // exclusive sums to determine starts
-    const int SCAN_BLOCK_THREADS = policy.exclusive_sum_policy.block_threads;
+    const int SCAN_BLOCK_THREADS = policy.exclusive_sum.block_threads;
 
 // log exclusive_sum_kernel configuration
 #ifdef CUB_DEBUG_LOG
@@ -486,7 +486,7 @@ private:
             num_passes,
             SCAN_BLOCK_THREADS,
             reinterpret_cast<long long>(stream),
-            policy.exclusive_sum_policy.radix_bits);
+            policy.exclusive_sum.radix_bits);
 #endif
 
     if (const auto error = CubDebug(launcher_factory(num_passes, SCAN_BLOCK_THREADS, 0, stream)
@@ -531,7 +531,7 @@ private:
                 num_blocks,
                 ONESWEEP_BLOCK_THREADS,
                 reinterpret_cast<long long>(stream),
-                policy.onesweep_policy.items_per_thread,
+                policy.onesweep.items_per_thread,
                 current_bit,
                 num_bits,
                 static_cast<int>(portion),
@@ -612,10 +612,10 @@ private:
           downsweep_kernel,
           sm_count,
           num_items,
-          policy.downsweep_policy.radix_bits,
+          policy.downsweep.radix_bits,
           policy.upsweep_policy,
-          policy.scan_policy,
-          policy.downsweep_policy,
+          policy.scan,
+          policy.downsweep,
           launcher_factory))
     {
       return error;
@@ -627,10 +627,10 @@ private:
           alt_downsweep_kernel,
           sm_count,
           num_items,
-          policy.downsweep_policy.radix_bits,
-          policy.alt_upsweep_policy,
-          policy.scan_policy,
-          policy.alt_downsweep_policy,
+          policy.downsweep.radix_bits,
+          policy.alt_upsweep,
+          policy.scan,
+          policy.alt_downsweep,
           launcher_factory))
     {
       return error;
@@ -768,11 +768,10 @@ public:
     }
 
     // Force kernel code-generation in all compiler passes
-    if (num_items
-        <= static_cast<OffsetT>(policy.single_tile_policy.block_threads * policy.single_tile_policy.items_per_thread))
+    if (num_items <= static_cast<OffsetT>(policy.single_tile.block_threads * policy.single_tile.items_per_thread))
     {
       // Small, single tile size
-      return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile_policy);
+      return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile);
     }
 
     if CUB_DETAIL_CONSTEXPR_ISH (policy.use_onesweep)
@@ -844,7 +843,7 @@ public:
   CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t
   InvokeSingleTile(SingleTileKernelT single_tile_kernel, ActivePolicyT policy = {})
   {
-    return __invoke_single_tile(single_tile_kernel, detail::radix_sort::convert_policy(policy).single_tile_policy);
+    return __invoke_single_tile(single_tile_kernel, detail::radix_sort::convert_policy(policy).single_tile);
   }
 
   //------------------------------------------------------------------------------
@@ -1010,10 +1009,10 @@ public:
         downsweep_kernel,
         sm_count,
         num_items,
-        policy.RadixBits(downsweep_policy),
+        policy.RadixBits(downsweep_policy), // TODO(bgruber)
         p.upsweep_policy,
-        p.scan_policy,
-        p.downsweep_policy,
+        p.scan,
+        p.downsweep,
         launcher_factory);
       return __init_pass_config(p);
     }

@@ -17,7 +17,7 @@ struct policy_selector
 
   _CCCL_API constexpr auto operator()(cuda::arch_id) const -> ::cub::detail::radix_sort::radix_sort_policy
   {
-    const auto onesweep_policy = [] {
+    const auto onesweep = [] {
       const auto scaled =
         cub::detail::scale_reg_bound(TUNE_THREADS_PER_BLOCK, TUNE_ITEMS_PER_THREAD, sizeof(DominantT));
       return radix_sort_onesweep_policy{
@@ -31,26 +31,25 @@ struct policy_selector
     }();
 
     // These kernels are launched once, no point in tuning at the moment
-    const auto histogram_policy = radix_sort_histogram_policy{
+    const auto histogram = radix_sort_histogram_policy{
       128, 16, cub::detail::radix_sort::__scale_num_parts(1, sizeof(KeyT)), ONESWEEP_RADIX_BITS};
-    const auto exclusive_sum_policy = radix_sort_exclusive_sum_policy{256, ONESWEEP_RADIX_BITS};
+    const auto exclusive_sum = radix_sort_exclusive_sum_policy{256, ONESWEEP_RADIX_BITS};
 
-    const auto scan_policy = [] {
+    const auto scan = [] {
       const auto scaled = cub::detail::scale_mem_bound(512, 23, sizeof(OffsetT));
-      return scan_policy{
-        scaled.block_threads,
-        scaled.items_per_thread,
-        cub::BLOCK_LOAD_WARP_TRANSPOSE,
-        cub::LOAD_DEFAULT,
-        cub::BLOCK_STORE_WARP_TRANSPOSE,
-        cub::BLOCK_SCAN_RAKING_MEMOIZE};
+      return scan{scaled.block_threads,
+                  scaled.items_per_thread,
+                  cub::BLOCK_LOAD_WARP_TRANSPOSE,
+                  cub::LOAD_DEFAULT,
+                  cub::BLOCK_STORE_WARP_TRANSPOSE,
+                  cub::BLOCK_SCAN_RAKING_MEMOIZE};
     }();
 
     // No point in tuning
     const int single_tile_radix_bits = (sizeof(KeyT) > 1) ? 6 : 5;
 
     // No point in tuning single-tile policy
-    const auto single_tile_policy = [] {
+    const auto single_tile = [] {
       const auto scaled = cub::detail::scale_reg_bound(256, 19, sizeof(DominantT));
       return cub::detail::radix_sort::radix_sort_downsweep_policy{
         scaled.block_threads,
@@ -66,17 +65,17 @@ struct policy_selector
     return radix_sort_policy{
       /* use_onesweep */ true,
       /* onesweep_radix_bits */ TUNE_RADIX_BITS,
-      histogram_policy,
-      exclusive_sum_policy,
-      onesweep_policy,
-      scan_policy,
-      /* downsweep_policy */ {},
-      /* alt_downsweep_policy */ {},
+      histogram,
+      exclusive_sum,
+      onesweep,
+      scan,
+      /* downsweep */ {},
+      /* alt_downsweep */ {},
       /* upsweep_policy */ {},
-      /* alt_upsweep_policy */ {},
-      single_tile_policy,
-      /* segmented_policy not used */ {},
-      /* alt_segmented_policy not used */ {}};
+      /* alt_upsweep */ {},
+      single_tile,
+      /* segmented not used */ {},
+      /* alt_segmented not used */ {}};
   }
 };
 
