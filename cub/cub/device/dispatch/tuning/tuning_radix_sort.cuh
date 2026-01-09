@@ -1003,6 +1003,11 @@ struct policy_hub
   using MaxPolicy = Policy1000;
 };
 
+[[nodiscard]] _CCCL_API constexpr int __scale_num_parts(int nominal_4b_num_parts, int compute_t_size)
+{
+  return ::cuda::std::max(1, nominal_4b_num_parts * 4 / ::cuda::std::max(compute_t_size, 4));
+}
+
 struct policy_selector
 {
   int key_size;
@@ -1020,11 +1025,6 @@ struct policy_selector
   [[nodiscard]] _CCCL_API constexpr int __dominant_size() const
   {
     return ::cuda::std::max(value_size, key_size);
-  }
-
-  [[nodiscard]] _CCCL_API constexpr int __scale_num_parts(int nominal_4b_num_parts, int compute_t_size) const
-  {
-    return ::cuda::std::max(1, nominal_4b_num_parts * 4 / ::cuda::std::max(compute_t_size, 4));
   }
 
   [[nodiscard]] _CCCL_API constexpr auto make_onsweep_small_key_policy(const small_key_tuning_values& tuning) const
