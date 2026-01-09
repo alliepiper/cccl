@@ -229,7 +229,7 @@ CUresult cccl_device_radix_sort_build_ex(
       }
     }();
 
-    const auto cub_arch_policies = cub::detail::radix_sort::arch_policies{
+    const auto policy_sel = cub::detail::radix_sort::policy_selector{
       static_cast<int>(input_keys_it.value_type.size),
       // FIXME(bgruber): input_values_it.value_type.size is 4 when it represents cub::NullType, which is very odd
       keys_only ? 0 : static_cast<int>(input_values_it.value_type.size),
@@ -237,11 +237,11 @@ CUresult cccl_device_radix_sort_build_ex(
       key_type};
 
     // TODO(bgruber): drop this if tuning policies become formattable
-    std::stringstream cub_arch_policies_str;
-    cub_arch_policies_str << cub_arch_policies(cuda::to_arch_id(cuda::compute_capability{cc_major, cc_minor}));
+    std::stringstream policy_sel_str;
+    policy_sel_str << policy_sel(cuda::to_arch_id(cuda::compute_capability{cc_major, cc_minor}));
 
     auto policy_hub_expr =
-      std::format("cub::detail::radix_sort::arch_policies_from_types<{}, {}, {}>", key_cpp, value_cpp, offset_t);
+      std::format("cub::detail::radix_sort::policy_selector_from_types<{}, {}, {}>", key_cpp, value_cpp, offset_t);
 
     const std::string final_src = std::format(
       R"XXX(
@@ -267,7 +267,7 @@ static_assert(device_radix_sort_policy()(::cuda::arch_id{{CUB_PTX_ARCH / 10}}) =
       input_values_it.value_type.alignment, // 3
       op_src, // 4
       policy_hub_expr, // 5
-      cub_arch_policies_str.view()); // 6
+      policy_sel_str.view()); // 6
 
 #if false // CCCL_DEBUGGING_SWITCH
     fflush(stderr);
@@ -372,7 +372,7 @@ static_assert(device_radix_sort_policy()(::cuda::arch_id{{CUB_PTX_ARCH / 10}}) =
     build_ptr->key_type       = input_keys_it.value_type;
     build_ptr->value_type     = input_values_it.value_type;
     build_ptr->order          = sort_order;
-    build_ptr->runtime_policy = new cub::detail::radix_sort::arch_policies{cub_arch_policies};
+    build_ptr->runtime_policy = new cub::detail::radix_sort::policy_selector{policy_sel};
   }
   catch (const std::exception& exc)
   {
@@ -442,7 +442,7 @@ CUresult cccl_device_radix_sort_impl(
       is_overwrite_okay,
       stream,
       decomposer,
-      *static_cast<cub::detail::radix_sort::arch_policies*>(build.runtime_policy),
+      *static_cast<cub::detail::radix_sort::policy_selector*>(build.runtime_policy),
       radix_sort::radix_sort_kernel_source{build},
       cub::detail::CudaDriverLauncherFactory{cu_device, build.cc});
 
@@ -544,7 +544,7 @@ CUresult cccl_device_radix_sort_cleanup(cccl_device_radix_sort_build_result_t* b
 
     using namespace cub::detail::radix_sort;
     std::unique_ptr<char[]> cubin(reinterpret_cast<char*>(build_ptr->cubin));
-    std::unique_ptr<arch_policies> policy(static_cast<arch_policies*>(build_ptr->runtime_policy));
+    std::unique_ptr<policy_selector> policy(static_cast<policy_selector*>(build_ptr->runtime_policy));
     check(cuLibraryUnload(build_ptr->library));
   }
   catch (const std::exception& exc)

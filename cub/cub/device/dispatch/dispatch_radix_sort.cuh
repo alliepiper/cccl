@@ -51,39 +51,39 @@ CUB_NAMESPACE_BEGIN
 
 namespace detail::radix_sort
 {
-template <typename ArchPolicies, SortOrder Order, typename KeyT, typename ValueT, typename OffsetT, typename DecomposerT>
+template <typename PolicySelector, SortOrder Order, typename KeyT, typename ValueT, typename OffsetT, typename DecomposerT>
 struct DeviceRadixSortKernelSource
 {
-  // ArchPolicies must be stateless, so we can pass the type to the kernel
-  static_assert(::cuda::std::is_empty_v<ArchPolicies>);
+  // PolicySelector must be stateless, so we can pass the type to the kernel
+  static_assert(::cuda::std::is_empty_v<PolicySelector>);
 
   CUB_DEFINE_KERNEL_GETTER(RadixSortSingleTileKernel,
-                           DeviceRadixSortSingleTileKernel<ArchPolicies, Order, KeyT, ValueT, OffsetT, DecomposerT>);
+                           DeviceRadixSortSingleTileKernel<PolicySelector, Order, KeyT, ValueT, OffsetT, DecomposerT>);
 
   CUB_DEFINE_KERNEL_GETTER(RadixSortUpsweepKernel,
-                           DeviceRadixSortUpsweepKernel<ArchPolicies, false, Order, KeyT, OffsetT, DecomposerT>);
+                           DeviceRadixSortUpsweepKernel<PolicySelector, false, Order, KeyT, OffsetT, DecomposerT>);
 
   CUB_DEFINE_KERNEL_GETTER(RadixSortAltUpsweepKernel,
-                           DeviceRadixSortUpsweepKernel<ArchPolicies, true, Order, KeyT, OffsetT, DecomposerT>);
+                           DeviceRadixSortUpsweepKernel<PolicySelector, true, Order, KeyT, OffsetT, DecomposerT>);
 
-  CUB_DEFINE_KERNEL_GETTER(DeviceRadixSortScanBinsKernel, RadixSortScanBinsKernel<ArchPolicies, OffsetT>);
+  CUB_DEFINE_KERNEL_GETTER(DeviceRadixSortScanBinsKernel, RadixSortScanBinsKernel<PolicySelector, OffsetT>);
 
   CUB_DEFINE_KERNEL_GETTER(
     RadixSortDownsweepKernel,
-    DeviceRadixSortDownsweepKernel<ArchPolicies, false, Order, KeyT, ValueT, OffsetT, DecomposerT>);
+    DeviceRadixSortDownsweepKernel<PolicySelector, false, Order, KeyT, ValueT, OffsetT, DecomposerT>);
 
   CUB_DEFINE_KERNEL_GETTER(
     RadixSortAltDownsweepKernel,
-    DeviceRadixSortDownsweepKernel<ArchPolicies, true, Order, KeyT, ValueT, OffsetT, DecomposerT>);
+    DeviceRadixSortDownsweepKernel<PolicySelector, true, Order, KeyT, ValueT, OffsetT, DecomposerT>);
 
   CUB_DEFINE_KERNEL_GETTER(RadixSortHistogramKernel,
-                           DeviceRadixSortHistogramKernel<ArchPolicies, Order, KeyT, OffsetT, DecomposerT>);
+                           DeviceRadixSortHistogramKernel<PolicySelector, Order, KeyT, OffsetT, DecomposerT>);
 
-  CUB_DEFINE_KERNEL_GETTER(RadixSortExclusiveSumKernel, DeviceRadixSortExclusiveSumKernel<ArchPolicies, OffsetT>);
+  CUB_DEFINE_KERNEL_GETTER(RadixSortExclusiveSumKernel, DeviceRadixSortExclusiveSumKernel<PolicySelector, OffsetT>);
 
   CUB_DEFINE_KERNEL_GETTER(
     RadixSortOnesweepKernel,
-    DeviceRadixSortOnesweepKernel<ArchPolicies, Order, KeyT, ValueT, OffsetT, int, int, DecomposerT>);
+    DeviceRadixSortOnesweepKernel<PolicySelector, Order, KeyT, ValueT, OffsetT, int, int, DecomposerT>);
 
   CUB_RUNTIME_FUNCTION static constexpr size_t KeySize()
   {
@@ -98,7 +98,7 @@ struct DeviceRadixSortKernelSource
 
 // TODO(bgruber): remove in CCCL 4.0
 template <typename PolicyHub>
-struct arch_policies_from_hub
+struct policy_selector_from_hub
 {
   // this is only called in device code
   _CCCL_DEVICE_API constexpr auto operator()(::cuda::arch_id /*arch*/) const -> radix_sort_policy
@@ -173,7 +173,7 @@ template <SortOrder Order,
           typename DecomposerT  = detail::identity_decomposer_t,
           typename PolicyHub    = detail::radix_sort::policy_hub<KeyT, ValueT, OffsetT>,
           typename KernelSource = detail::radix_sort::DeviceRadixSortKernelSource<
-            detail::radix_sort::arch_policies_from_hub<PolicyHub>,
+            detail::radix_sort::policy_selector_from_hub<PolicyHub>,
             Order,
             KeyT,
             ValueT,
@@ -1194,9 +1194,9 @@ template <SortOrder Order,
           typename KeyT,
           typename ValueT,
           typename OffsetT,
-          typename DecomposerT  = identity_decomposer_t,
-          typename ArchPolicies = arch_policies_from_types<KeyT, ValueT, OffsetT>,
-          typename KernelSource = DeviceRadixSortKernelSource<ArchPolicies, Order, KeyT, ValueT, OffsetT, DecomposerT>,
+          typename DecomposerT    = identity_decomposer_t,
+          typename PolicySelector = policy_selector_from_types<KeyT, ValueT, OffsetT>,
+          typename KernelSource = DeviceRadixSortKernelSource<PolicySelector, Order, KeyT, ValueT, OffsetT, DecomposerT>,
           typename KernelLauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
 CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
   void* d_temp_storage,
@@ -1209,7 +1209,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
   bool is_overwrite_okay,
   cudaStream_t stream,
   DecomposerT decomposer                 = {},
-  ArchPolicies arch_policies             = {},
+  PolicySelector policy_selector         = {},
   KernelSource kernel_source             = {},
   KernelLauncherFactory launcher_factory = {})
 {
@@ -1221,11 +1221,11 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
 
 #if !_CCCL_COMPILER(NVRTC) && defined(CUB_DEBUG_LOG)
   NV_IF_TARGET(NV_IS_HOST,
-               (std::stringstream ss; ss << arch_policies(arch_id);
+               (std::stringstream ss; ss << policy_selector(arch_id);
                 _CubLog("Dispatching DeviceReduce to arch %d with tuning: %s\n", (int) arch_id, ss.str().c_str());))
 #endif // !_CCCL_COMPILER(NVRTC) && defined(CUB_DEBUG_LOG)
 
-  return dispatch_arch(arch_policies, arch_id, [&](auto policy_getter) {
+  return dispatch_arch(policy_selector, arch_id, [&](auto policy_getter) {
     return DispatchRadixSort<Order, KeyT, ValueT, OffsetT, DecomposerT, fake_policy, KernelSource, KernelLauncherFactory>{
       d_temp_storage,
       temp_storage_bytes,

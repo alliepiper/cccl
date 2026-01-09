@@ -1002,7 +1002,7 @@ struct policy_hub
   using MaxPolicy = Policy1000;
 };
 
-struct arch_policies
+struct policy_selector
 {
   int key_size;
   int value_size; // when 0, indicates keys-only
@@ -1806,11 +1806,11 @@ struct arch_policies
 };
 
 template <typename KeyT, typename ValueT, typename OffsetT>
-struct arch_policies_from_types
+struct policy_selector_from_types
 {
   [[nodiscard]] _CCCL_API constexpr auto operator()(cuda::arch_id arch) const -> radix_sort_policy
   {
-    constexpr auto policies = arch_policies{
+    constexpr auto policies = policy_selector{
       int{sizeof(KeyT)},
       ::cuda::std::is_same_v<ValueT, NullType> ? 0 : int{sizeof(ValueT)},
       int{sizeof(OffsetT)},
