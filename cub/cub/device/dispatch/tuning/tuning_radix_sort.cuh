@@ -397,6 +397,7 @@ struct radix_sort_policy
   radix_sort_upsweep_policy upsweep_policy;
   radix_sort_upsweep_policy alt_upsweep_policy;
   radix_sort_downsweep_policy single_tile_policy;
+  // TODO(bgruber): move those over to segmented radix sort when we port it
   radix_sort_downsweep_policy segmented_policy;
   radix_sort_downsweep_policy alt_segmented_policy;
 
