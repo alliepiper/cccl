@@ -20,6 +20,7 @@
 #  pragma system_header
 #endif // no system header
 
+#include <cub/detail/arch_dispatch.cuh>
 #include <cub/device/dispatch/kernels/kernel_radix_sort.cuh>
 #include <cub/device/dispatch/tuning/tuning_radix_sort.cuh>
 #include <cub/util_debug.cuh>
@@ -661,8 +662,11 @@ private:
   }
 
 public:
-  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(detail::radix_sort::radix_sort_policy policy)
+  template <typename PolicyGetter>
+  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(PolicyGetter policy_getter)
   {
+    CUB_DETAIL_CONSTEXPR_ISH auto policy = policy_getter();
+
     // Return if empty problem, or if no bits to sort and double-buffering is used
     if (num_items == 0 || (begin_bit == end_bit && is_overwrite_okay))
     {
@@ -695,7 +699,7 @@ public:
       return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile_policy);
     }
 
-    if (policy.onesweep) // TODO(bgruber): THIS IS THE HARD PART: make this constexpr again!!!
+    if CUB_DETAIL_CONSTEXPR_ISH (policy.onesweep)
     {
       return __invoke_onesweep(policy);
     }
@@ -1085,9 +1089,11 @@ public:
 
   /// Invocation
   template <typename ActivePolicyT>
-  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t Invoke(ActivePolicyT policy = {})
+  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t Invoke(ActivePolicyT = {})
   {
-    return __invoke(detail::radix_sort::convert_policy(detail::radix_sort::MakeRadixSortPolicyWrapper(policy)));
+    return __invoke([] {
+      return detail::radix_sort::convert_policy(detail::radix_sort::MakeRadixSortPolicyWrapper(ActivePolicyT{}));
+    });
   }
 
   //------------------------------------------------------------------------------
@@ -1213,28 +1219,29 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch(
     return error;
   }
 
-  const radix_sort_policy active_policy = arch_policies(arch_id);
 #if !_CCCL_COMPILER(NVRTC) && defined(CUB_DEBUG_LOG)
   NV_IF_TARGET(NV_IS_HOST,
-               (std::stringstream ss; ss << active_policy;
+               (std::stringstream ss; ss << arch_policies(arch_id);
                 _CubLog("Dispatching DeviceReduce to arch %d with tuning: %s\n", (int) arch_id, ss.str().c_str());))
 #endif // !_CCCL_COMPILER(NVRTC) && defined(CUB_DEBUG_LOG)
 
-  return DispatchRadixSort<Order, KeyT, ValueT, OffsetT, DecomposerT, fake_policy, KernelSource, KernelLauncherFactory>{
-    d_temp_storage,
-    temp_storage_bytes,
-    d_keys,
-    d_values,
-    static_cast<OffsetT>(num_items),
-    begin_bit,
-    end_bit,
-    is_overwrite_okay,
-    stream,
-    -1 /* ptx_version, not used actually */,
-    decomposer,
-    kernel_source,
-    launcher_factory}
-    .__invoke(active_policy);
+  return dispatch_arch(arch_policies, arch_id, [&](auto policy_getter) {
+    return DispatchRadixSort<Order, KeyT, ValueT, OffsetT, DecomposerT, fake_policy, KernelSource, KernelLauncherFactory>{
+      d_temp_storage,
+      temp_storage_bytes,
+      d_keys,
+      d_values,
+      static_cast<OffsetT>(num_items),
+      begin_bit,
+      end_bit,
+      is_overwrite_okay,
+      stream,
+      -1 /* ptx_version, not used actually */,
+      decomposer,
+      kernel_source,
+      launcher_factory}
+      .__invoke(policy_getter);
+  });
 }
 } // namespace detail::radix_sort
 
