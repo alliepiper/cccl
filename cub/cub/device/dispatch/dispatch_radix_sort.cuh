@@ -103,8 +103,84 @@ struct policy_selector_from_hub
   // this is only called in device code
   _CCCL_DEVICE_API constexpr auto operator()(::cuda::arch_id /*arch*/) const -> radix_sort_policy
   {
-    // TODO(bgruber): implement
-    return {};
+    using active_policy = typename PolicyHub::MaxPolicy::ActivePolicy;
+
+    auto convert_downsweep_policy = []([[maybe_unused]] auto p) {
+      using p_t = decltype(p);
+      return radix_sort_downsweep_policy{
+        p_t::BLOCK_THREADS,
+        p_t::ITEMS_PER_THREAD,
+        p_t::RADIX_BITS,
+        p_t::LOAD_ALGORITHM,
+        p_t::LOAD_MODIFIER,
+        p_t::RANK_ALGORITHM,
+        p_t::SCAN_ALGORITHM};
+    };
+
+    const auto histogram_policy = [] {
+      using p = typename active_policy::HistogramPolicy;
+      return radix_sort_histogram_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::NUM_PARTS, p::RADIX_BITS};
+    }();
+
+    const auto exclusive_sum_policy = [] {
+      using p = typename active_policy::ExclusiveSumPolicy;
+      return radix_sort_exclusive_sum_policy{p::BLOCK_THREADS, p::RADIX_BITS};
+    }();
+
+    const auto onesweep_policy = [] {
+      using p = typename active_policy::OnesweepPolicy;
+      return radix_sort_onesweep_policy{
+        p::BLOCK_THREADS,
+        p::ITEMS_PER_THREAD,
+        p::RANK_NUM_PARTS,
+        p::RADIX_BITS,
+        p::RANK_ALGORITHM,
+        p::SCAN_ALGORITHM,
+        p::STORE_ALGORITHM};
+    }();
+
+    const auto scan_policy = [] {
+      using p = typename active_policy::ScanPolicy;
+      return radix_sort::scan_policy{
+        p::BLOCK_THREADS,
+        p::ITEMS_PER_THREAD,
+        p::LOAD_ALGORITHM,
+        p::LOAD_MODIFIER,
+        p::STORE_ALGORITHM,
+        p::SCAN_ALGORITHM};
+    }();
+
+    const auto downsweep_policy     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
+    const auto alt_downsweep_policy = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
+
+    const auto upsweep_policy = [] {
+      using p = typename active_policy::UpsweepPolicy;
+      return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
+    }();
+
+    const auto alt_upsweep_policy = [] {
+      using p = typename active_policy::AltUpsweepPolicy;
+      return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
+    }();
+
+    const auto single_tile_policy   = convert_downsweep_policy(typename active_policy::SingleTilePolicy{});
+    const auto segmented_policy     = convert_downsweep_policy(typename active_policy::SegmentedPolicy{});
+    const auto alt_segmented_policy = convert_downsweep_policy(typename active_policy::AltSegmentedPolicy{});
+
+    return radix_sort_policy{
+      active_policy::ONESWEEP,
+      active_policy::ONESWEEP_RADIX_BITS,
+      histogram_policy,
+      exclusive_sum_policy,
+      onesweep_policy,
+      scan_policy,
+      downsweep_policy,
+      alt_downsweep_policy,
+      upsweep_policy,
+      alt_upsweep_policy,
+      single_tile_policy,
+      segmented_policy,
+      alt_segmented_policy};
   }
 };
 
