@@ -386,7 +386,7 @@ _CCCL_API constexpr auto make_reg_scaled_radix_sort_upsweep_policy(
 
 struct radix_sort_policy
 {
-  bool onesweep;
+  bool use_onesweep;
   int onesweep_radix_bits;
   radix_sort_histogram_policy histogram_policy;
   radix_sort_exclusive_sum_policy exclusive_sum_policy;
@@ -403,7 +403,7 @@ struct radix_sort_policy
 
   _CCCL_API constexpr friend bool operator==(const radix_sort_policy& lhs, const radix_sort_policy& rhs)
   {
-    return lhs.onesweep == rhs.onesweep && lhs.onesweep_radix_bits == rhs.onesweep_radix_bits
+    return lhs.use_onesweep == rhs.use_onesweep && lhs.onesweep_radix_bits == rhs.onesweep_radix_bits
         && lhs.histogram_policy == rhs.histogram_policy && lhs.exclusive_sum_policy == rhs.exclusive_sum_policy
         && lhs.onesweep_policy == rhs.onesweep_policy && lhs.scan_policy == rhs.scan_policy
         && lhs.downsweep_policy == rhs.downsweep_policy && lhs.alt_downsweep_policy == rhs.alt_downsweep_policy
@@ -421,13 +421,14 @@ struct radix_sort_policy
   friend ::std::ostream& operator<<(::std::ostream& os, const radix_sort_policy& p)
   {
     return os
-        << "radix_sort_policy { .onesweep = " << p.onesweep << ", .onesweep_radix_bits = " << p.onesweep_radix_bits
-        << ", .histogram_policy = " << p.histogram_policy << ", .exclusive_sum_policy = " << p.exclusive_sum_policy
-        << ", .onesweep_policy = " << p.onesweep_policy << ", .scan_policy = " << p.scan_policy
-        << ", .downsweep_policy = " << p.downsweep_policy << ", .alt_downsweep_policy = " << p.alt_downsweep_policy
-        << ", .upsweep_policy = " << p.upsweep_policy << ", .alt_upsweep_policy = " << p.alt_upsweep_policy
-        << ", .single_tile_policy = " << p.single_tile_policy << ", .segmented_policy = " << p.segmented_policy
-        << ", .alt_segmented_policy = " << p.alt_segmented_policy << " }";
+        << "radix_sort_policy { .use_onesweep = " << p.use_onesweep
+        << ", .onesweep_radix_bits = " << p.onesweep_radix_bits << ", .histogram_policy = " << p.histogram_policy
+        << ", .exclusive_sum_policy = " << p.exclusive_sum_policy << ", .onesweep_policy = " << p.onesweep_policy
+        << ", .scan_policy = " << p.scan_policy << ", .downsweep_policy = " << p.downsweep_policy
+        << ", .alt_downsweep_policy = " << p.alt_downsweep_policy << ", .upsweep_policy = " << p.upsweep_policy
+        << ", .alt_upsweep_policy = " << p.alt_upsweep_policy << ", .single_tile_policy = " << p.single_tile_policy
+        << ", .segmented_policy = " << p.segmented_policy << ", .alt_segmented_policy = " << p.alt_segmented_policy
+        << " }";
   }
 #endif // !_CCCL_COMPILER(NVRTC)
 };
@@ -1150,7 +1151,7 @@ struct policy_selector
       BLOCK_SCAN_WARP_SCANS);
 
     return radix_sort_policy{
-      /* onesweep */ true,
+      /* use_onesweep */ true,
       onesweep_radix_bits,
       histogram_policy,
       exclusive_sum_policy,
@@ -1184,7 +1185,7 @@ struct policy_selector
       const int primary_radix_bits     = (key_size > 1) ? 7 : 5;
       const int single_tile_radix_bits = (key_size > 1) ? 6 : 5;
       const int segmented_radix_bits   = (key_size > 1) ? 6 : 5;
-      const bool onesweep              = key_size >= int{sizeof(uint32_t)};
+      const bool use_onesweep          = key_size >= int{sizeof(uint32_t)};
       const int onesweep_radix_bits    = 8;
       const bool offset_64bit          = offset_size == 8;
 
@@ -1269,7 +1270,7 @@ struct policy_selector
         BLOCK_SCAN_WARP_SCANS);
 
       return radix_sort_policy{
-        onesweep,
+        use_onesweep,
         onesweep_radix_bits,
         histogram_policy,
         exclusive_sum_policy,
@@ -1289,7 +1290,7 @@ struct policy_selector
       const int primary_radix_bits     = (key_size > 1) ? 7 : 5; // 7.62B 32b keys/s (GV100)
       const int single_tile_radix_bits = (key_size > 1) ? 6 : 5;
       const int segmented_radix_bits   = (key_size > 1) ? 6 : 5; // 8.7B 32b segmented keys/s (GV100)
-      const bool onesweep = key_size >= int{sizeof(uint32_t)}; // 15.8B 32b keys/s (V100-SXM2, 64M random keys)
+      const bool use_onesweep = key_size >= int{sizeof(uint32_t)}; // 15.8B 32b keys/s (V100-SXM2, 64M random keys)
       const int onesweep_radix_bits = 8;
       const bool offset_64bit       = offset_size == 8;
 
@@ -1374,7 +1375,7 @@ struct policy_selector
         BLOCK_SCAN_WARP_SCANS);
 
       return radix_sort_policy{
-        onesweep,
+        use_onesweep,
         onesweep_radix_bits,
         histogram_policy,
         exclusive_sum_policy,
@@ -1393,7 +1394,7 @@ struct policy_selector
     {
       const int primary_radix_bits  = 5;
       const int alt_radix_bits      = primary_radix_bits - 1;
-      const bool onesweep           = key_size >= int{sizeof(uint32_t)};
+      const bool use_onesweep       = key_size >= int{sizeof(uint32_t)};
       const int onesweep_radix_bits = 8;
 
       const auto histogram_policy =
@@ -1466,7 +1467,7 @@ struct policy_selector
       const auto alt_segmented_policy = alt_downsweep_policy;
 
       return radix_sort_policy{
-        onesweep,
+        use_onesweep,
         onesweep_radix_bits,
         histogram_policy,
         exclusive_sum_policy,
@@ -1486,7 +1487,7 @@ struct policy_selector
       const int primary_radix_bits     = (key_size > 1) ? 7 : 5; // 3.4B 32b keys/s, 1.83B 32b pairs/s (1080)
       const int single_tile_radix_bits = (key_size > 1) ? 6 : 5;
       const int segmented_radix_bits   = (key_size > 1) ? 6 : 5; // 3.3B 32b segmented keys/s (1080)
-      const bool onesweep              = key_size >= int{sizeof(uint32_t)}; // 10.0B 32b keys/s (GP100, 64M random keys)
+      const bool use_onesweep          = key_size >= int{sizeof(uint32_t)}; // 10.0B 32b keys/s (GP100, 64M random keys)
       const int onesweep_radix_bits    = 8;
 
       const auto histogram_policy =
@@ -1570,7 +1571,7 @@ struct policy_selector
         BLOCK_SCAN_WARP_SCANS);
 
       return radix_sort_policy{
-        onesweep,
+        use_onesweep,
         onesweep_radix_bits,
         histogram_policy,
         exclusive_sum_policy,
@@ -1590,7 +1591,7 @@ struct policy_selector
       const int primary_radix_bits     = (key_size > 1) ? 7 : 5; // 6.9B 32b keys/s (Quadro P100)
       const int single_tile_radix_bits = (key_size > 1) ? 6 : 5;
       const int segmented_radix_bits   = (key_size > 1) ? 6 : 5; // 5.9B 32b segmented keys/s (Quadro P100)
-      const bool onesweep              = key_size >= int{sizeof(uint32_t)}; // 10.0B 32b keys/s (GP100, 64M random keys)
+      const bool use_onesweep          = key_size >= int{sizeof(uint32_t)}; // 10.0B 32b keys/s (GP100, 64M random keys)
       const int onesweep_radix_bits    = 8;
       const bool offset_64bit          = (offset_size == 8);
 
@@ -1681,7 +1682,7 @@ struct policy_selector
         BLOCK_SCAN_WARP_SCANS);
 
       return radix_sort_policy{
-        onesweep,
+        use_onesweep,
         onesweep_radix_bits,
         histogram_policy,
         exclusive_sum_policy,
@@ -1700,7 +1701,7 @@ struct policy_selector
     const int primary_radix_bits     = (key_size > 1) ? 7 : 5; // 3.5B 32b keys/s, 1.92B 32b pairs/s (TitanX)
     const int single_tile_radix_bits = (key_size > 1) ? 6 : 5;
     const int segmented_radix_bits   = (key_size > 1) ? 6 : 5; // 3.1B 32b segmented keys/s (TitanX)
-    const bool onesweep              = false;
+    const bool use_onesweep          = false;
     const int onesweep_radix_bits    = 8;
 
     const auto histogram_policy =
@@ -1790,7 +1791,7 @@ struct policy_selector
       BLOCK_SCAN_WARP_SCANS);
 
     return radix_sort_policy{
-      onesweep,
+      use_onesweep,
       onesweep_radix_bits,
       histogram_policy,
       exclusive_sum_policy,

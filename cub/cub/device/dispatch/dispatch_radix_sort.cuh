@@ -189,7 +189,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto convert_policy(WrappedActivePolicyT 
 {
   radix_sort_policy p; // leaving uninitialized so sanitizers can flag if we forgot to set a field
 
-  p.onesweep = policy.IsOnesweep();
+  p.use_onesweep = policy.IsOnesweep();
 
   p.onesweep_policy.radix_bits       = policy.RadixBits(policy.Onesweep());
   p.onesweep_policy.items_per_thread = policy.Onesweep().ItemsPerThread();
@@ -775,7 +775,7 @@ public:
       return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile_policy);
     }
 
-    if CUB_DETAIL_CONSTEXPR_ISH (policy.onesweep)
+    if CUB_DETAIL_CONSTEXPR_ISH (policy.use_onesweep)
     {
       return __invoke_onesweep(policy);
     }

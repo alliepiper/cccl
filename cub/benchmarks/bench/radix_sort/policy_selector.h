@@ -64,7 +64,7 @@ struct policy_selector
     }();
 
     return radix_sort_policy{
-      /* onesweep */ true,
+      /* use_onesweep */ true,
       /* onesweep_radix_bits */ TUNE_RADIX_BITS,
       histogram_policy,
       exclusive_sum_policy,
