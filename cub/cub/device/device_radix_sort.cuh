@@ -163,14 +163,14 @@ private:
     return detail::radix_sort::dispatch<Order>(
       d_temp_storage,
       temp_storage_bytes,
-      is_overwrite_okay,
       d_keys,
       d_values,
       num_items,
-      decomposer,
       begin_bit,
       end_bit,
-      stream);
+      is_overwrite_okay,
+      stream,
+      decomposer);
   }
 
   // Name reported for NVTX ranges
