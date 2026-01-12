@@ -694,6 +694,7 @@ _CCCL_API constexpr auto get_sm100_tuning(int key_size, int value_size, int offs
   return get_sm90_tuning(key_size, value_size, offset_size);
 }
 
+// TODO(bgruber): remove when segmented radix sort is ported to the new tuning API
 template <typename PolicyT, typename = void>
 struct RadixSortPolicyWrapper : PolicyT
 {
@@ -706,20 +707,12 @@ struct RadixSortPolicyWrapper : PolicyT
 using namespace radix_sort_runtime_policies;
 #endif
 
+// TODO(bgruber): remove when segmented radix sort is ported to the new tuning API
 template <typename StaticPolicyT>
 struct RadixSortPolicyWrapper<
   StaticPolicyT,
-  ::cuda::std::void_t<typename StaticPolicyT::SingleTilePolicy,
-                      typename StaticPolicyT::OnesweepPolicy,
-                      typename StaticPolicyT::UpsweepPolicy,
-                      typename StaticPolicyT::AltUpsweepPolicy,
-                      typename StaticPolicyT::DownsweepPolicy,
-                      typename StaticPolicyT::AltDownsweepPolicy,
-                      typename StaticPolicyT::HistogramPolicy,
-                      typename StaticPolicyT::ScanPolicy,
-                      typename StaticPolicyT::ExclusiveSumPolicy,
-                      typename StaticPolicyT::SegmentedPolicy,
-                      typename StaticPolicyT::AltSegmentedPolicy>> : StaticPolicyT
+  ::cuda::std::void_t<typename StaticPolicyT::SegmentedPolicy, typename StaticPolicyT::AltSegmentedPolicy>>
+    : StaticPolicyT
 {
   _CCCL_HOST_DEVICE RadixSortPolicyWrapper(StaticPolicyT base)
       : StaticPolicyT(base)
@@ -774,6 +767,7 @@ struct RadixSortPolicyWrapper<
 #endif
 };
 
+// TODO(bgruber): remove when segmented radix sort is ported to the new tuning API
 template <typename PolicyT>
 _CCCL_HOST_DEVICE RadixSortPolicyWrapper<PolicyT> MakeRadixSortPolicyWrapper(PolicyT policy)
 {
