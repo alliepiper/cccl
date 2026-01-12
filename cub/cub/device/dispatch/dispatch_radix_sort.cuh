@@ -96,6 +96,97 @@ struct DeviceRadixSortKernelSource
   }
 };
 
+template <typename LegacyActivePolicy>
+_CCCL_API constexpr auto convert_policy() -> radix_sort_policy
+{
+  using active_policy = LegacyActivePolicy;
+
+  auto convert_downsweep_policy = []([[maybe_unused]] auto p) {
+    using p_t = decltype(p);
+    return radix_sort_downsweep_policy{
+      p_t::BLOCK_THREADS,
+      p_t::ITEMS_PER_THREAD,
+      p_t::RADIX_BITS,
+      p_t::LOAD_ALGORITHM,
+      p_t::LOAD_MODIFIER,
+      p_t::RANK_ALGORITHM,
+      p_t::SCAN_ALGORITHM};
+  };
+
+  const auto histogram = [] {
+    using p = typename active_policy::HistogramPolicy;
+    return radix_sort_histogram_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::NUM_PARTS, p::RADIX_BITS};
+  }();
+
+  const auto exclusive_sum = [] {
+    using p = typename active_policy::ExclusiveSumPolicy;
+    return radix_sort_exclusive_sum_policy{p::BLOCK_THREADS, p::RADIX_BITS};
+  }();
+
+  const auto onesweep = [] {
+    using p = typename active_policy::OnesweepPolicy;
+    return radix_sort_onesweep_policy{
+      p::BLOCK_THREADS,
+      p::ITEMS_PER_THREAD,
+      p::RANK_NUM_PARTS,
+      p::RADIX_BITS,
+      p::RANK_ALGORITHM,
+      p::SCAN_ALGORITHM,
+      p::STORE_ALGORITHM};
+  }();
+
+  const auto scan = [] {
+    using p = typename active_policy::ScanPolicy;
+    return scan_policy{
+      p::BLOCK_THREADS,
+      p::ITEMS_PER_THREAD,
+      p::LOAD_ALGORITHM,
+      p::LOAD_MODIFIER,
+      p::STORE_ALGORITHM,
+      p::SCAN_ALGORITHM,
+      delay_constructor_policy_from_type<typename p::detail::delay_constructor_t>};
+  }();
+
+  const auto downsweep     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
+  const auto alt_downsweep = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
+
+  const auto upsweep_policy = [] {
+    using p = typename active_policy::UpsweepPolicy;
+    return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
+  }();
+
+  const auto alt_upsweep = [] {
+    using p = typename active_policy::AltUpsweepPolicy;
+    return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
+  }();
+
+  const auto single_tile   = convert_downsweep_policy(typename active_policy::SingleTilePolicy{});
+  const auto segmented     = convert_downsweep_policy(typename active_policy::SegmentedPolicy{});
+  const auto alt_segmented = convert_downsweep_policy(typename active_policy::AltSegmentedPolicy{});
+
+  return radix_sort_policy{
+    active_policy::ONESWEEP,
+    active_policy::ONESWEEP_RADIX_BITS,
+    histogram,
+    exclusive_sum,
+    onesweep,
+    scan,
+    downsweep,
+    alt_downsweep,
+    upsweep_policy,
+    alt_upsweep,
+    single_tile,
+    segmented,
+    alt_segmented};
+}
+
+template <typename LegacyActivePolicy>
+CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE constexpr auto convert_policy(RadixSortPolicyWrapper<LegacyActivePolicy> policy)
+  -> radix_sort_policy
+{
+  return convert_policy<LegacyActivePolicy>();
+}
+
 // TODO(bgruber): remove in CCCL 4.0
 template <typename PolicyHub>
 struct policy_selector_from_hub
@@ -103,119 +194,9 @@ struct policy_selector_from_hub
   // this is only called in device code
   _CCCL_DEVICE_API constexpr auto operator()(::cuda::arch_id /*arch*/) const -> radix_sort_policy
   {
-    using active_policy = typename PolicyHub::MaxPolicy::ActivePolicy;
-
-    auto convert_downsweep_policy = []([[maybe_unused]] auto p) {
-      using p_t = decltype(p);
-      return radix_sort_downsweep_policy{
-        p_t::BLOCK_THREADS,
-        p_t::ITEMS_PER_THREAD,
-        p_t::RADIX_BITS,
-        p_t::LOAD_ALGORITHM,
-        p_t::LOAD_MODIFIER,
-        p_t::RANK_ALGORITHM,
-        p_t::SCAN_ALGORITHM};
-    };
-
-    const auto histogram = [] {
-      using p = typename active_policy::HistogramPolicy;
-      return radix_sort_histogram_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::NUM_PARTS, p::RADIX_BITS};
-    }();
-
-    const auto exclusive_sum = [] {
-      using p = typename active_policy::ExclusiveSumPolicy;
-      return radix_sort_exclusive_sum_policy{p::BLOCK_THREADS, p::RADIX_BITS};
-    }();
-
-    const auto onesweep = [] {
-      using p = typename active_policy::OnesweepPolicy;
-      return radix_sort_onesweep_policy{
-        p::BLOCK_THREADS,
-        p::ITEMS_PER_THREAD,
-        p::RANK_NUM_PARTS,
-        p::RADIX_BITS,
-        p::RANK_ALGORITHM,
-        p::SCAN_ALGORITHM,
-        p::STORE_ALGORITHM};
-    }();
-
-    const auto scan = [] {
-      using p = typename active_policy::ScanPolicy;
-      return scan_policy{
-        p::BLOCK_THREADS,
-        p::ITEMS_PER_THREAD,
-        p::LOAD_ALGORITHM,
-        p::LOAD_MODIFIER,
-        p::STORE_ALGORITHM,
-        p::SCAN_ALGORITHM};
-    }();
-
-    const auto downsweep     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
-    const auto alt_downsweep = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
-
-    const auto upsweep_policy = [] {
-      using p = typename active_policy::UpsweepPolicy;
-      return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
-    }();
-
-    const auto alt_upsweep = [] {
-      using p = typename active_policy::AltUpsweepPolicy;
-      return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
-    }();
-
-    const auto single_tile   = convert_downsweep_policy(typename active_policy::SingleTilePolicy{});
-    const auto segmented     = convert_downsweep_policy(typename active_policy::SegmentedPolicy{});
-    const auto alt_segmented = convert_downsweep_policy(typename active_policy::AltSegmentedPolicy{});
-
-    return radix_sort_policy{
-      active_policy::ONESWEEP,
-      active_policy::ONESWEEP_RADIX_BITS,
-      histogram,
-      exclusive_sum,
-      onesweep,
-      scan,
-      downsweep,
-      alt_downsweep,
-      upsweep_policy,
-      alt_upsweep,
-      single_tile,
-      segmented,
-      alt_segmented};
+    return convert_policy<typename PolicyHub::MaxPolicy::ActivePolicy>();
   }
 };
-
-template <typename WrappedActivePolicyT>
-CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE auto convert_policy(WrappedActivePolicyT policy) -> radix_sort_policy
-{
-  radix_sort_policy p; // leaving uninitialized so sanitizers can flag if we forgot to set a field
-
-  p.use_onesweep = policy.IsOnesweep();
-
-  p.onesweep.radix_bits       = policy.RadixBits(policy.Onesweep());
-  p.onesweep.items_per_thread = policy.Onesweep().ItemsPerThread();
-  p.onesweep.block_threads    = policy.Onesweep().BlockThreads();
-
-  p.histogram.block_threads    = policy.Histogram().BlockThreads();
-  p.histogram.items_per_thread = policy.Histogram().ItemsPerThread();
-  p.histogram.radix_bits       = policy.RadixBits(policy.Histogram());
-
-  p.exclusive_sum.block_threads = policy.BlockThreads(policy.ExclusiveSum());
-  p.exclusive_sum.radix_bits    = policy.RadixBits(policy.ExclusiveSum());
-
-  p.single_tile.block_threads    = policy.SingleTile().BlockThreads();
-  p.single_tile.items_per_thread = policy.SingleTile().ItemsPerThread();
-  p.single_tile.radix_bits       = policy.RadixBits(policy.SingleTile());
-
-  p.upsweep_policy.block_threads    = policy.Upsweep().BlockThreads();
-  p.upsweep_policy.items_per_thread = policy.Upsweep().ItemsPerThread();
-
-  p.scan.block_threads    = policy.Scan().BlockThreads();
-  p.scan.items_per_thread = policy.Scan().ItemsPerThread();
-
-  p.downsweep.items_per_thread = policy.DownSweep().ItemsPerThread();
-
-  return p;
-}
 } // namespace detail::radix_sort
 
 /******************************************************************************
@@ -1009,7 +990,7 @@ public:
         downsweep_kernel,
         sm_count,
         num_items,
-        policy.RadixBits(downsweep_policy), // TODO(bgruber)
+        p.downsweep.radix_bits,
         p.upsweep_policy,
         p.scan,
         p.downsweep,
@@ -1167,7 +1148,7 @@ public:
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t Invoke(ActivePolicyT = {})
   {
     return __invoke([] {
-      return detail::radix_sort::convert_policy(detail::radix_sort::MakeRadixSortPolicyWrapper(ActivePolicyT{}));
+      return detail::radix_sort::convert_policy<ActivePolicyT>();
     });
   }
 

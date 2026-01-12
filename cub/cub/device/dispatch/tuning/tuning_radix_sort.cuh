@@ -95,6 +95,44 @@ struct delay_constructor_policy
 #endif // !_CCCL_COMPILER(NVRTC)
 };
 
+template <typename DelayConstructor>
+inline constexpr auto delay_constructor_policy_from_type = 0;
+
+template <unsigned int L2WriteLatency>
+inline constexpr auto delay_constructor_policy_from_type<no_delay_constructor_t<L2WriteLatency>> =
+  delay_constructor_policy{delay_constructor_kind::no_delay, 0, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto delay_constructor_policy_from_type<fixed_delay_constructor_t<Delay, L2WriteLatency>> =
+  delay_constructor_policy{delay_constructor_kind::fixed_delay, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto delay_constructor_policy_from_type<exponential_backoff_constructor_t<Delay, L2WriteLatency>> =
+  delay_constructor_policy{delay_constructor_kind::exponential_backoff, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto
+  delay_constructor_policy_from_type<exponential_backoff_jitter_constructor_t<Delay, L2WriteLatency>> =
+    delay_constructor_policy{delay_constructor_kind::exponential_backoff_jitter, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto
+  delay_constructor_policy_from_type<exponential_backoff_jitter_window_constructor_t<Delay, L2WriteLatency>> =
+    delay_constructor_policy{delay_constructor_kind::exponential_backoff_jitter_window, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto
+  delay_constructor_policy_from_type<exponential_backon_jitter_window_constructor_t<Delay, L2WriteLatency>> =
+    delay_constructor_policy{delay_constructor_kind::exponential_backon_jitter_window, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto delay_constructor_policy_from_type<exponential_backon_jitter_constructor_t<Delay, L2WriteLatency>> =
+  delay_constructor_policy{delay_constructor_kind::exponential_backon_jitter, Delay, L2WriteLatency};
+
+template <unsigned int Delay, unsigned int L2WriteLatency>
+inline constexpr auto delay_constructor_policy_from_type<exponential_backon_constructor_t<Delay, L2WriteLatency>> =
+  delay_constructor_policy{delay_constructor_kind::exponential_backon, Delay, L2WriteLatency};
+
 // TODO(bgruber): this is modeled after <look_back_helper.cuh>, unify this
 template <delay_constructor_kind Kind, unsigned int Delay, unsigned int L2WriteLatency>
 struct __delay_constructor_t_helper
@@ -394,7 +432,7 @@ struct radix_sort_policy
   scan_policy scan;
   radix_sort_downsweep_policy downsweep;
   radix_sort_downsweep_policy alt_downsweep;
-  radix_sort_upsweep_policy upsweep_policy;
+  radix_sort_upsweep_policy upsweep_policy; // TODO(bgruber): drop `_policy`
   radix_sort_upsweep_policy alt_upsweep;
   radix_sort_downsweep_policy single_tile;
   // TODO(bgruber): move those over to segmented radix sort when we port it
