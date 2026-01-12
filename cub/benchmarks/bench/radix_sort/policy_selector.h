@@ -71,7 +71,7 @@ struct policy_selector
       scan,
       /* downsweep */ {},
       /* alt_downsweep */ {},
-      /* upsweep_policy */ {},
+      /* upsweep */ {},
       /* alt_upsweep */ {},
       single_tile,
       /* segmented not used */ {},

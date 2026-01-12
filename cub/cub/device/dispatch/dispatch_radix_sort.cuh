@@ -150,7 +150,7 @@ _CCCL_API constexpr auto convert_policy() -> radix_sort_policy
   const auto downsweep     = convert_downsweep_policy(typename active_policy::DownsweepPolicy{});
   const auto alt_downsweep = convert_downsweep_policy(typename active_policy::AltDownsweepPolicy{});
 
-  const auto upsweep_policy = [] {
+  const auto upsweep = [] {
     using p = typename active_policy::UpsweepPolicy;
     return radix_sort_upsweep_policy{p::BLOCK_THREADS, p::ITEMS_PER_THREAD, p::RADIX_BITS, p::LOAD_MODIFIER};
   }();
@@ -173,7 +173,7 @@ _CCCL_API constexpr auto convert_policy() -> radix_sort_policy
     scan,
     downsweep,
     alt_downsweep,
-    upsweep_policy,
+    upsweep,
     alt_upsweep,
     single_tile,
     segmented,
@@ -594,7 +594,7 @@ private:
           sm_count,
           num_items,
           policy.downsweep.radix_bits,
-          policy.upsweep_policy,
+          policy.upsweep,
           policy.scan,
           policy.downsweep,
           launcher_factory))
@@ -991,7 +991,7 @@ public:
         sm_count,
         num_items,
         p.downsweep.radix_bits,
-        p.upsweep_policy,
+        p.upsweep,
         p.scan,
         p.downsweep,
         launcher_factory);

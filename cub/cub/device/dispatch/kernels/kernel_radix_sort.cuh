@@ -78,9 +78,8 @@ template <typename PolicySelector,
           typename KeyT,
           typename OffsetT,
           typename DecomposerT = detail::identity_decomposer_t>
-__launch_bounds__(int(ALT_DIGIT_BITS
-                        ? PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).alt_upsweep.block_threads
-                        : PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).upsweep_policy.block_threads))
+__launch_bounds__(int(ALT_DIGIT_BITS ? PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).alt_upsweep.block_threads
+                                     : PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10}).upsweep.block_threads))
   CUB_DETAIL_KERNEL_ATTRIBUTES void DeviceRadixSortUpsweepKernel(
     const KeyT* d_keys,
     OffsetT* d_spine,
@@ -92,7 +91,7 @@ __launch_bounds__(int(ALT_DIGIT_BITS
 {
   static constexpr radix_sort_policy policy = PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10});
   static constexpr radix_sort_upsweep_policy active_upsweep_policy =
-    ALT_DIGIT_BITS ? policy.alt_upsweep : policy.upsweep_policy;
+    ALT_DIGIT_BITS ? policy.alt_upsweep : policy.upsweep;
   static constexpr radix_sort_downsweep_policy active_downsweep_policy =
     ALT_DIGIT_BITS ? policy.alt_downsweep : policy.downsweep;
 
@@ -256,7 +255,7 @@ __launch_bounds__(int(ALT_DIGIT_BITS ? PolicySelector{}(::cuda::arch_id{CUB_PTX_
   static constexpr radix_sort_policy policy = PolicySelector{}(::cuda::arch_id{CUB_PTX_ARCH / 10});
 
   static constexpr radix_sort_upsweep_policy active_upsweep_policy =
-    ALT_DIGIT_BITS ? policy.alt_upsweep : policy.upsweep_policy;
+    ALT_DIGIT_BITS ? policy.alt_upsweep : policy.upsweep;
   static constexpr radix_sort_downsweep_policy active_downsweep_policy =
     ALT_DIGIT_BITS ? policy.alt_downsweep : policy.downsweep;
 
