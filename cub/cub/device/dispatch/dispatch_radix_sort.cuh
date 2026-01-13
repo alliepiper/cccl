@@ -999,9 +999,9 @@ public:
     }
 
     CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t __init_pass_config(
-      UpsweepKernelT upsweep_kernel,
-      ScanKernelT scan_kernel,
-      DownsweepKernelT downsweep_kernel,
+      UpsweepKernelT upsweep_kern,
+      ScanKernelT scan_kern,
+      DownsweepKernelT downsweep_kern,
       int sm_count,
       OffsetT num_items,
       int radix_bits,
@@ -1010,9 +1010,9 @@ public:
       detail::radix_sort::radix_sort_downsweep_policy downsweep_policy,
       KernelLauncherFactory launcher_factory)
     {
-      this->upsweep_kernel   = upsweep_kernel;
-      this->scan_kernel      = scan_kernel;
-      this->downsweep_kernel = downsweep_kernel;
+      this->upsweep_kernel   = upsweep_kern;
+      this->scan_kernel      = scan_kern;
+      this->downsweep_kernel = downsweep_kern;
       this->radix_bits       = radix_bits;
       radix_digits           = 1 << radix_bits;
 
