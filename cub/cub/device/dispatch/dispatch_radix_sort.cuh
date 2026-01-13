@@ -945,7 +945,7 @@ private:
           alt_downsweep_kernel,
           sm_count,
           num_items,
-          policy.downsweep.radix_bits,
+          policy.alt_downsweep.radix_bits,
           policy.alt_upsweep,
           policy.scan,
           policy.alt_downsweep,
