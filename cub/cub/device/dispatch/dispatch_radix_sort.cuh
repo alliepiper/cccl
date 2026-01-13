@@ -571,7 +571,7 @@ private:
     ScanKernelT scan_kernel,
     DownsweepKernelT downsweep_kernel,
     DownsweepKernelT alt_downsweep_kernel,
-    detail::radix_sort::radix_sort_policy policy)
+    const detail::radix_sort::radix_sort_policy& policy)
   {
     // Get device ordinal
     int device_ordinal;
