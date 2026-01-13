@@ -590,7 +590,7 @@ public:
       DownsweepKernelT downsweep_kern,
       int sm_count,
       OffsetT num_items,
-      int radix_bits,
+      int pass_radix_bits,
       detail::radix_sort::radix_sort_upsweep_policy upsweep_policy,
       detail::radix_sort::scan_policy scan_policy,
       detail::radix_sort::radix_sort_downsweep_policy downsweep_policy,
@@ -599,7 +599,7 @@ public:
       this->upsweep_kernel   = upsweep_kern;
       this->scan_kernel      = scan_kern;
       this->downsweep_kernel = downsweep_kern;
-      this->radix_bits       = radix_bits;
+      this->radix_bits       = pass_radix_bits;
       radix_digits           = 1 << radix_bits;
 
       if (const auto error = CubDebug(upsweep_config.__init(upsweep_kernel, upsweep_policy, launcher_factory)))
