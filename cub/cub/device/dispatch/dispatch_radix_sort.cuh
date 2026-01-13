@@ -292,487 +292,6 @@ struct DispatchRadixSort
 
   KernelLauncherFactory launcher_factory;
 
-private:
-  template <typename SingleTileKernelT>
-  CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t
-  __invoke_single_tile(SingleTileKernelT single_tile_kernel, detail::radix_sort::radix_sort_downsweep_policy policy)
-  {
-    // Return if the caller is simply requesting the size of the storage allocation
-    if (d_temp_storage == nullptr)
-    {
-      temp_storage_bytes = 1;
-      return cudaSuccess;
-    }
-
-    // Log single_tile_kernel configuration
-#ifdef CUB_DEBUG_LOG
-    _CubLog("Invoking single_tile_kernel<<<%d, %d, 0, %lld>>>(), %d items per thread, %d SM occupancy, current bit "
-            "%d, bit_grain %d\n",
-            1,
-            policy.block_threads,
-            (long long) stream,
-            policy.items_per_thread,
-            1,
-            begin_bit,
-            policy.radix_bits);
-#endif
-
-    // Invoke upsweep_kernel with same grid size as downsweep_kernel
-    launcher_factory(1, policy.block_threads, 0, stream)
-      .doit(single_tile_kernel,
-            d_keys.Current(),
-            d_keys.Alternate(),
-            d_values.Current(),
-            d_values.Alternate(),
-            num_items,
-            begin_bit,
-            end_bit,
-            decomposer);
-
-    // Check for failure to launch
-    if (const auto error = CubDebug(cudaPeekAtLastError()))
-    {
-      return error;
-    }
-
-    // Sync the stream if specified to flush runtime errors
-    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
-    {
-      return error;
-    }
-
-    // Update selector
-    d_keys.selector ^= 1;
-    d_values.selector ^= 1;
-
-    return cudaSuccess;
-  }
-
-  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke_onesweep(detail::radix_sort::radix_sort_policy policy)
-  {
-    // PortionOffsetT is used for offsets within a portion, and must be signed.
-    using PortionOffsetT = int;
-    using AtomicOffsetT  = PortionOffsetT;
-
-    // compute temporary storage size
-    const int RADIX_BITS                = policy.onesweep.radix_bits;
-    const int RADIX_DIGITS              = 1 << RADIX_BITS;
-    const int ONESWEEP_ITEMS_PER_THREAD = policy.onesweep.items_per_thread;
-    const int ONESWEEP_BLOCK_THREADS    = policy.onesweep.block_threads;
-    const int ONESWEEP_TILE_ITEMS       = ONESWEEP_ITEMS_PER_THREAD * ONESWEEP_BLOCK_THREADS;
-    // portions handle inputs with >=2**30 elements, due to the way lookback works
-    // for testing purposes, one portion is <= 2**28 elements
-    const PortionOffsetT PORTION_SIZE = ((1 << 28) - 1) / ONESWEEP_TILE_ITEMS * ONESWEEP_TILE_ITEMS;
-    int num_passes                    = ::cuda::ceil_div(end_bit - begin_bit, RADIX_BITS);
-    OffsetT num_portions              = static_cast<OffsetT>(::cuda::ceil_div(num_items, PORTION_SIZE));
-    PortionOffsetT max_num_blocks     = ::cuda::ceil_div(
-      static_cast<int>(::cuda::std::min(num_items, static_cast<OffsetT>(PORTION_SIZE))), ONESWEEP_TILE_ITEMS);
-
-    size_t value_size         = KEYS_ONLY ? 0 : kernel_source.ValueSize();
-    size_t allocation_sizes[] = {
-      // bins
-      num_portions * num_passes * RADIX_DIGITS * sizeof(OffsetT),
-      // lookback
-      max_num_blocks * RADIX_DIGITS * sizeof(AtomicOffsetT),
-      // extra key buffer
-      is_overwrite_okay || num_passes <= 1 ? 0 : num_items * kernel_source.KeySize(),
-      // extra value buffer
-      is_overwrite_okay || num_passes <= 1 ? 0 : num_items * value_size,
-      // counters
-      num_portions * num_passes * sizeof(AtomicOffsetT),
-    };
-    constexpr int NUM_ALLOCATIONS      = sizeof(allocation_sizes) / sizeof(allocation_sizes[0]);
-    void* allocations[NUM_ALLOCATIONS] = {};
-    if (const auto error =
-          detail::alias_temporaries<NUM_ALLOCATIONS>(d_temp_storage, temp_storage_bytes, allocations, allocation_sizes))
-    {
-      return error;
-    }
-
-    // just return if no temporary storage is provided
-    if (d_temp_storage == nullptr)
-    {
-      return cudaSuccess;
-    }
-
-    OffsetT* d_bins           = (OffsetT*) allocations[0];
-    AtomicOffsetT* d_lookback = (AtomicOffsetT*) allocations[1];
-    KeyT* d_keys_tmp2         = (KeyT*) allocations[2];
-    ValueT* d_values_tmp2     = (ValueT*) allocations[3];
-    AtomicOffsetT* d_ctrs     = (AtomicOffsetT*) allocations[4];
-
-    // initialization
-    if (const auto error =
-          CubDebug(cudaMemsetAsync(d_ctrs, 0, num_portions * num_passes * sizeof(AtomicOffsetT), stream)))
-    {
-      return error;
-    }
-
-    // compute num_passes histograms with RADIX_DIGITS bins each
-    if (const auto error = CubDebug(cudaMemsetAsync(d_bins, 0, num_passes * RADIX_DIGITS * sizeof(OffsetT), stream)))
-    {
-      return error;
-    }
-    int device  = -1;
-    int num_sms = 0;
-
-    if (const auto error = CubDebug(cudaGetDevice(&device)))
-    {
-      return error;
-    }
-
-    if (const auto error = CubDebug(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, device)))
-    {
-      return error;
-    }
-
-    const int HISTO_BLOCK_THREADS = policy.histogram.block_threads;
-    int histo_blocks_per_sm       = 1;
-    auto histogram_kernel         = kernel_source.RadixSortHistogramKernel();
-
-    if (const auto error =
-          CubDebug(launcher_factory.MaxSmOccupancy(histo_blocks_per_sm, histogram_kernel, HISTO_BLOCK_THREADS, 0)))
-    {
-      return error;
-    }
-
-// log histogram_kernel configuration
-#ifdef CUB_DEBUG_LOG
-    _CubLog("Invoking histogram_kernel<<<%d, %d, 0, %lld>>>(), %d items per iteration, "
-            "%d SM occupancy, bit_grain %d\n",
-            histo_blocks_per_sm * num_sms,
-            HISTO_BLOCK_THREADS,
-            reinterpret_cast<long long>(stream),
-            policy.histogram.items_per_thread,
-            histo_blocks_per_sm,
-            policy.histogram.radix_bits);
-#endif
-
-    if (const auto error = CubDebug(
-          launcher_factory(histo_blocks_per_sm * num_sms, HISTO_BLOCK_THREADS, 0, stream)
-            .doit(histogram_kernel, d_bins, d_keys.Current(), num_items, begin_bit, end_bit, decomposer)))
-    {
-      return error;
-    }
-
-    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
-    {
-      return error;
-    }
-
-    // exclusive sums to determine starts
-    const int SCAN_BLOCK_THREADS = policy.exclusive_sum.block_threads;
-
-// log exclusive_sum_kernel configuration
-#ifdef CUB_DEBUG_LOG
-    _CubLog("Invoking exclusive_sum_kernel<<<%d, %d, 0, %lld>>>(), bit_grain %d\n",
-            num_passes,
-            SCAN_BLOCK_THREADS,
-            reinterpret_cast<long long>(stream),
-            policy.exclusive_sum.radix_bits);
-#endif
-
-    if (const auto error = CubDebug(launcher_factory(num_passes, SCAN_BLOCK_THREADS, 0, stream)
-                                      .doit(kernel_source.RadixSortExclusiveSumKernel(), d_bins)))
-    {
-      return error;
-    }
-
-    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
-    {
-      return error;
-    }
-    // use the other buffer if no overwrite is allowed
-    KeyT* d_keys_tmp     = d_keys.Alternate();
-    ValueT* d_values_tmp = d_values.Alternate();
-    if (!is_overwrite_okay && num_passes % 2 == 0)
-    {
-      d_keys.d_buffers[1]   = d_keys_tmp2;
-      d_values.d_buffers[1] = d_values_tmp2;
-    }
-
-    for (int current_bit = begin_bit, pass = 0; current_bit < end_bit; current_bit += RADIX_BITS, ++pass)
-    {
-      int num_bits = ::cuda::std::min(end_bit - current_bit, RADIX_BITS);
-      for (OffsetT portion = 0; portion < num_portions; ++portion)
-      {
-        PortionOffsetT portion_num_items = static_cast<PortionOffsetT>(
-          ::cuda::std::min(num_items - portion * PORTION_SIZE, static_cast<OffsetT>(PORTION_SIZE)));
-
-        PortionOffsetT num_blocks = ::cuda::ceil_div(portion_num_items, ONESWEEP_TILE_ITEMS);
-
-        if (const auto error =
-              CubDebug(cudaMemsetAsync(d_lookback, 0, num_blocks * RADIX_DIGITS * sizeof(AtomicOffsetT), stream)))
-        {
-          return error;
-        }
-
-// log onesweep_kernel configuration
-#ifdef CUB_DEBUG_LOG
-        _CubLog("Invoking onesweep_kernel<<<%d, %d, 0, %lld>>>(), %d items per thread, "
-                "current bit %d, bit_grain %d, portion %d/%d\n",
-                num_blocks,
-                ONESWEEP_BLOCK_THREADS,
-                reinterpret_cast<long long>(stream),
-                policy.onesweep.items_per_thread,
-                current_bit,
-                num_bits,
-                static_cast<int>(portion),
-                static_cast<int>(num_portions));
-#endif
-
-        auto onesweep_kernel = kernel_source.RadixSortOnesweepKernel();
-
-        if (const auto error = CubDebug(
-              launcher_factory(num_blocks, ONESWEEP_BLOCK_THREADS, 0, stream)
-                .doit(
-                  onesweep_kernel,
-                  d_lookback,
-                  d_ctrs + portion * num_passes + pass,
-                  portion < num_portions - 1 ? d_bins + ((portion + 1) * num_passes + pass) * RADIX_DIGITS : nullptr,
-                  d_bins + (portion * num_passes + pass) * RADIX_DIGITS,
-                  d_keys.Alternate(),
-                  d_keys.Current() + portion * PORTION_SIZE,
-                  d_values.Alternate(),
-                  d_values.Current() + portion * PORTION_SIZE,
-                  portion_num_items,
-                  current_bit,
-                  num_bits,
-                  decomposer)))
-        {
-          return error;
-        }
-
-        if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
-        {
-          return error;
-        }
-      }
-
-      // use the temporary buffers if no overwrite is allowed
-      if (!is_overwrite_okay && pass == 0)
-      {
-        d_keys   = num_passes % 2 == 0 ? DoubleBuffer<KeyT>(d_keys_tmp, d_keys_tmp2)
-                                       : DoubleBuffer<KeyT>(d_keys_tmp2, d_keys_tmp);
-        d_values = num_passes % 2 == 0 ? DoubleBuffer<ValueT>(d_values_tmp, d_values_tmp2)
-                                       : DoubleBuffer<ValueT>(d_values_tmp2, d_values_tmp);
-      }
-      d_keys.selector ^= 1;
-      d_values.selector ^= 1;
-    }
-
-    return cudaSuccess;
-  }
-
-  template <typename UpsweepKernelT, typename ScanKernelT, typename DownsweepKernelT>
-  CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t __invoke_passes(
-    UpsweepKernelT upsweep_kernel,
-    UpsweepKernelT alt_upsweep_kernel,
-    ScanKernelT scan_kernel,
-    DownsweepKernelT downsweep_kernel,
-    DownsweepKernelT alt_downsweep_kernel,
-    const detail::radix_sort::radix_sort_policy& policy)
-  {
-    // Get device ordinal
-    int device_ordinal;
-    if (const auto error = CubDebug(cudaGetDevice(&device_ordinal)))
-    {
-      return error;
-    }
-
-    // Get SM count
-    int sm_count;
-    if (const auto error = CubDebug(cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device_ordinal)))
-    {
-      return error;
-    }
-
-    // Init regular and alternate-digit kernel configurations
-    PassConfig<UpsweepKernelT, ScanKernelT, DownsweepKernelT> pass_config, alt_pass_config;
-    if (const auto error = pass_config.__init_pass_config(
-          upsweep_kernel,
-          scan_kernel,
-          downsweep_kernel,
-          sm_count,
-          num_items,
-          policy.downsweep.radix_bits,
-          policy.upsweep,
-          policy.scan,
-          policy.downsweep,
-          launcher_factory))
-    {
-      return error;
-    }
-
-    if (const auto error = alt_pass_config.__init_pass_config(
-          alt_upsweep_kernel,
-          scan_kernel,
-          alt_downsweep_kernel,
-          sm_count,
-          num_items,
-          policy.downsweep.radix_bits,
-          policy.alt_upsweep,
-          policy.scan,
-          policy.alt_downsweep,
-          launcher_factory))
-    {
-      return error;
-    }
-
-    // Get maximum spine length
-    int max_grid_size = ::cuda::std::max(pass_config.max_downsweep_grid_size, alt_pass_config.max_downsweep_grid_size);
-    int spine_length  = (max_grid_size * pass_config.radix_digits) + pass_config.scan_config.tile_size;
-
-    // Temporary storage allocation requirements
-    void* allocations[3]       = {};
-    size_t allocation_sizes[3] = {
-      // bytes needed for privatized block digit histograms
-      spine_length * sizeof(OffsetT),
-
-      // bytes needed for 3rd keys buffer
-      (is_overwrite_okay) ? 0 : num_items * kernel_source.KeySize(),
-
-      // bytes needed for 3rd values buffer
-      (is_overwrite_okay || (KEYS_ONLY)) ? 0 : num_items * kernel_source.ValueSize(),
-    };
-
-    // Alias the temporary allocations from the single storage blob (or compute the necessary size of the blob)
-    if (const auto error =
-          CubDebug(detail::alias_temporaries(d_temp_storage, temp_storage_bytes, allocations, allocation_sizes)))
-    {
-      return error;
-    }
-
-    // Return if the caller is simply requesting the size of the storage allocation
-    if (d_temp_storage == nullptr)
-    {
-      return cudaSuccess;
-    }
-
-    // Pass planning.  Run passes of the alternate digit-size configuration until we have an even multiple of our
-    // preferred digit size
-    int num_bits           = end_bit - begin_bit;
-    int num_passes         = ::cuda::ceil_div(num_bits, pass_config.radix_bits);
-    bool is_num_passes_odd = num_passes & 1;
-    int max_alt_passes     = (num_passes * pass_config.radix_bits) - num_bits;
-    int alt_end_bit        = ::cuda::std::min(end_bit, begin_bit + (max_alt_passes * alt_pass_config.radix_bits));
-
-    // Alias the temporary storage allocations
-    OffsetT* d_spine = static_cast<OffsetT*>(allocations[0]);
-
-    DoubleBuffer<KeyT> d_keys_remaining_passes(
-      (is_overwrite_okay || is_num_passes_odd) ? d_keys.Alternate() : static_cast<KeyT*>(allocations[1]),
-      (is_overwrite_okay)   ? d_keys.Current()
-      : (is_num_passes_odd) ? static_cast<KeyT*>(allocations[1])
-                            : d_keys.Alternate());
-
-    DoubleBuffer<ValueT> d_values_remaining_passes(
-      (is_overwrite_okay || is_num_passes_odd) ? d_values.Alternate() : static_cast<ValueT*>(allocations[2]),
-      (is_overwrite_okay)   ? d_values.Current()
-      : (is_num_passes_odd) ? static_cast<ValueT*>(allocations[2])
-                            : d_values.Alternate());
-
-    // Run first pass, consuming from the input's current buffers
-    int current_bit = begin_bit;
-    if (const auto error = CubDebug(InvokePass(
-          d_keys.Current(),
-          d_keys_remaining_passes.Current(),
-          d_values.Current(),
-          d_values_remaining_passes.Current(),
-          d_spine,
-          spine_length,
-          current_bit,
-          (current_bit < alt_end_bit) ? alt_pass_config : pass_config)))
-    {
-      return error;
-    }
-
-    // Run remaining passes
-    while (current_bit < end_bit)
-    {
-      if (const auto error = CubDebug(InvokePass(
-            d_keys_remaining_passes.d_buffers[d_keys_remaining_passes.selector],
-            d_keys_remaining_passes.d_buffers[d_keys_remaining_passes.selector ^ 1],
-            d_values_remaining_passes.d_buffers[d_keys_remaining_passes.selector],
-            d_values_remaining_passes.d_buffers[d_keys_remaining_passes.selector ^ 1],
-            d_spine,
-            spine_length,
-            current_bit,
-            (current_bit < alt_end_bit) ? alt_pass_config : pass_config)))
-      {
-        return error;
-      }
-
-      // Invert selectors
-      d_keys_remaining_passes.selector ^= 1;
-      d_values_remaining_passes.selector ^= 1;
-    }
-
-    // Update selector
-    if (!is_overwrite_okay)
-    {
-      num_passes = 1; // Sorted data always ends up in the other vector
-    }
-
-    d_keys.selector   = (d_keys.selector + num_passes) & 1;
-    d_values.selector = (d_values.selector + num_passes) & 1;
-
-    return cudaSuccess;
-  }
-
-public:
-  template <typename PolicyGetter>
-  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(PolicyGetter policy_getter)
-  {
-    CUB_DETAIL_CONSTEXPR_ISH auto policy = policy_getter();
-
-    // Return if empty problem, or if no bits to sort and double-buffering is used
-    if (num_items == 0 || (begin_bit == end_bit && is_overwrite_okay))
-    {
-      if (d_temp_storage == nullptr)
-      {
-        temp_storage_bytes = 1;
-      }
-      return cudaSuccess;
-    }
-
-    // Check if simple copy suffices (is_overwrite_okay == false at this point)
-    if (begin_bit == end_bit)
-    {
-      bool has_uva = false;
-      if (const auto error = detail::HasUVA(has_uva))
-      {
-        return error;
-      }
-      if (has_uva)
-      {
-        return InvokeCopy();
-      }
-    }
-
-    // Force kernel code-generation in all compiler passes
-    if (num_items <= static_cast<OffsetT>(policy.single_tile.block_threads * policy.single_tile.items_per_thread))
-    {
-      // Small, single tile size
-      return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile);
-    }
-
-    if CUB_DETAIL_CONSTEXPR_ISH (policy.use_onesweep)
-    {
-      return __invoke_onesweep(policy);
-    }
-    else
-    {
-      return __invoke_passes(
-        kernel_source.RadixSortUpsweepKernel(),
-        kernel_source.RadixSortAltUpsweepKernel(),
-        kernel_source.DeviceRadixSortScanBinsKernel(),
-        kernel_source.RadixSortDownsweepKernel(),
-        kernel_source.RadixSortAltDownsweepKernel(),
-        policy);
-    }
-  }
-
   //------------------------------------------------------------------------------
   // Constructor
   //------------------------------------------------------------------------------
@@ -831,6 +350,63 @@ public:
     return __invoke_single_tile(single_tile_kernel, detail::radix_sort::convert_policy(policy).single_tile);
   }
 
+private:
+  template <typename SingleTileKernelT>
+  CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t
+  __invoke_single_tile(SingleTileKernelT single_tile_kernel, detail::radix_sort::radix_sort_downsweep_policy policy)
+  {
+    // Return if the caller is simply requesting the size of the storage allocation
+    if (d_temp_storage == nullptr)
+    {
+      temp_storage_bytes = 1;
+      return cudaSuccess;
+    }
+
+    // Log single_tile_kernel configuration
+#ifdef CUB_DEBUG_LOG
+    _CubLog("Invoking single_tile_kernel<<<%d, %d, 0, %lld>>>(), %d items per thread, %d SM occupancy, current bit "
+            "%d, bit_grain %d\n",
+            1,
+            policy.block_threads,
+            (long long) stream,
+            policy.items_per_thread,
+            1,
+            begin_bit,
+            policy.radix_bits);
+#endif
+
+    // Invoke upsweep_kernel with same grid size as downsweep_kernel
+    launcher_factory(1, policy.block_threads, 0, stream)
+      .doit(single_tile_kernel,
+            d_keys.Current(),
+            d_keys.Alternate(),
+            d_values.Current(),
+            d_values.Alternate(),
+            num_items,
+            begin_bit,
+            end_bit,
+            decomposer);
+
+    // Check for failure to launch
+    if (const auto error = CubDebug(cudaPeekAtLastError()))
+    {
+      return error;
+    }
+
+    // Sync the stream if specified to flush runtime errors
+    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
+    {
+      return error;
+    }
+
+    // Update selector
+    d_keys.selector ^= 1;
+    d_values.selector ^= 1;
+
+    return cudaSuccess;
+  }
+
+public:
   //------------------------------------------------------------------------------
   // Normal problem size invocation
   //------------------------------------------------------------------------------
@@ -1054,6 +630,224 @@ public:
     return __invoke_onesweep(detail::radix_sort::convert_policy(policy));
   }
 
+private:
+  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke_onesweep(detail::radix_sort::radix_sort_policy policy)
+  {
+    // PortionOffsetT is used for offsets within a portion, and must be signed.
+    using PortionOffsetT = int;
+    using AtomicOffsetT  = PortionOffsetT;
+
+    // compute temporary storage size
+    const int RADIX_BITS                = policy.onesweep.radix_bits;
+    const int RADIX_DIGITS              = 1 << RADIX_BITS;
+    const int ONESWEEP_ITEMS_PER_THREAD = policy.onesweep.items_per_thread;
+    const int ONESWEEP_BLOCK_THREADS    = policy.onesweep.block_threads;
+    const int ONESWEEP_TILE_ITEMS       = ONESWEEP_ITEMS_PER_THREAD * ONESWEEP_BLOCK_THREADS;
+    // portions handle inputs with >=2**30 elements, due to the way lookback works
+    // for testing purposes, one portion is <= 2**28 elements
+    const PortionOffsetT PORTION_SIZE = ((1 << 28) - 1) / ONESWEEP_TILE_ITEMS * ONESWEEP_TILE_ITEMS;
+    int num_passes                    = ::cuda::ceil_div(end_bit - begin_bit, RADIX_BITS);
+    OffsetT num_portions              = static_cast<OffsetT>(::cuda::ceil_div(num_items, PORTION_SIZE));
+    PortionOffsetT max_num_blocks     = ::cuda::ceil_div(
+      static_cast<int>(::cuda::std::min(num_items, static_cast<OffsetT>(PORTION_SIZE))), ONESWEEP_TILE_ITEMS);
+
+    size_t value_size         = KEYS_ONLY ? 0 : kernel_source.ValueSize();
+    size_t allocation_sizes[] = {
+      // bins
+      num_portions * num_passes * RADIX_DIGITS * sizeof(OffsetT),
+      // lookback
+      max_num_blocks * RADIX_DIGITS * sizeof(AtomicOffsetT),
+      // extra key buffer
+      is_overwrite_okay || num_passes <= 1 ? 0 : num_items * kernel_source.KeySize(),
+      // extra value buffer
+      is_overwrite_okay || num_passes <= 1 ? 0 : num_items * value_size,
+      // counters
+      num_portions * num_passes * sizeof(AtomicOffsetT),
+    };
+    constexpr int NUM_ALLOCATIONS      = sizeof(allocation_sizes) / sizeof(allocation_sizes[0]);
+    void* allocations[NUM_ALLOCATIONS] = {};
+    if (const auto error =
+          detail::alias_temporaries<NUM_ALLOCATIONS>(d_temp_storage, temp_storage_bytes, allocations, allocation_sizes))
+    {
+      return error;
+    }
+
+    // just return if no temporary storage is provided
+    if (d_temp_storage == nullptr)
+    {
+      return cudaSuccess;
+    }
+
+    OffsetT* d_bins           = (OffsetT*) allocations[0];
+    AtomicOffsetT* d_lookback = (AtomicOffsetT*) allocations[1];
+    KeyT* d_keys_tmp2         = (KeyT*) allocations[2];
+    ValueT* d_values_tmp2     = (ValueT*) allocations[3];
+    AtomicOffsetT* d_ctrs     = (AtomicOffsetT*) allocations[4];
+
+    // initialization
+    if (const auto error =
+          CubDebug(cudaMemsetAsync(d_ctrs, 0, num_portions * num_passes * sizeof(AtomicOffsetT), stream)))
+    {
+      return error;
+    }
+
+    // compute num_passes histograms with RADIX_DIGITS bins each
+    if (const auto error = CubDebug(cudaMemsetAsync(d_bins, 0, num_passes * RADIX_DIGITS * sizeof(OffsetT), stream)))
+    {
+      return error;
+    }
+    int device  = -1;
+    int num_sms = 0;
+
+    if (const auto error = CubDebug(cudaGetDevice(&device)))
+    {
+      return error;
+    }
+
+    if (const auto error = CubDebug(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, device)))
+    {
+      return error;
+    }
+
+    const int HISTO_BLOCK_THREADS = policy.histogram.block_threads;
+    int histo_blocks_per_sm       = 1;
+    auto histogram_kernel         = kernel_source.RadixSortHistogramKernel();
+
+    if (const auto error =
+          CubDebug(launcher_factory.MaxSmOccupancy(histo_blocks_per_sm, histogram_kernel, HISTO_BLOCK_THREADS, 0)))
+    {
+      return error;
+    }
+
+// log histogram_kernel configuration
+#ifdef CUB_DEBUG_LOG
+    _CubLog("Invoking histogram_kernel<<<%d, %d, 0, %lld>>>(), %d items per iteration, "
+            "%d SM occupancy, bit_grain %d\n",
+            histo_blocks_per_sm * num_sms,
+            HISTO_BLOCK_THREADS,
+            reinterpret_cast<long long>(stream),
+            policy.histogram.items_per_thread,
+            histo_blocks_per_sm,
+            policy.histogram.radix_bits);
+#endif
+
+    if (const auto error = CubDebug(
+          launcher_factory(histo_blocks_per_sm * num_sms, HISTO_BLOCK_THREADS, 0, stream)
+            .doit(histogram_kernel, d_bins, d_keys.Current(), num_items, begin_bit, end_bit, decomposer)))
+    {
+      return error;
+    }
+
+    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
+    {
+      return error;
+    }
+
+    // exclusive sums to determine starts
+    const int SCAN_BLOCK_THREADS = policy.exclusive_sum.block_threads;
+
+// log exclusive_sum_kernel configuration
+#ifdef CUB_DEBUG_LOG
+    _CubLog("Invoking exclusive_sum_kernel<<<%d, %d, 0, %lld>>>(), bit_grain %d\n",
+            num_passes,
+            SCAN_BLOCK_THREADS,
+            reinterpret_cast<long long>(stream),
+            policy.exclusive_sum.radix_bits);
+#endif
+
+    if (const auto error = CubDebug(launcher_factory(num_passes, SCAN_BLOCK_THREADS, 0, stream)
+                                      .doit(kernel_source.RadixSortExclusiveSumKernel(), d_bins)))
+    {
+      return error;
+    }
+
+    if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
+    {
+      return error;
+    }
+    // use the other buffer if no overwrite is allowed
+    KeyT* d_keys_tmp     = d_keys.Alternate();
+    ValueT* d_values_tmp = d_values.Alternate();
+    if (!is_overwrite_okay && num_passes % 2 == 0)
+    {
+      d_keys.d_buffers[1]   = d_keys_tmp2;
+      d_values.d_buffers[1] = d_values_tmp2;
+    }
+
+    for (int current_bit = begin_bit, pass = 0; current_bit < end_bit; current_bit += RADIX_BITS, ++pass)
+    {
+      int num_bits = ::cuda::std::min(end_bit - current_bit, RADIX_BITS);
+      for (OffsetT portion = 0; portion < num_portions; ++portion)
+      {
+        PortionOffsetT portion_num_items = static_cast<PortionOffsetT>(
+          ::cuda::std::min(num_items - portion * PORTION_SIZE, static_cast<OffsetT>(PORTION_SIZE)));
+
+        PortionOffsetT num_blocks = ::cuda::ceil_div(portion_num_items, ONESWEEP_TILE_ITEMS);
+
+        if (const auto error =
+              CubDebug(cudaMemsetAsync(d_lookback, 0, num_blocks * RADIX_DIGITS * sizeof(AtomicOffsetT), stream)))
+        {
+          return error;
+        }
+
+// log onesweep_kernel configuration
+#ifdef CUB_DEBUG_LOG
+        _CubLog("Invoking onesweep_kernel<<<%d, %d, 0, %lld>>>(), %d items per thread, "
+                "current bit %d, bit_grain %d, portion %d/%d\n",
+                num_blocks,
+                ONESWEEP_BLOCK_THREADS,
+                reinterpret_cast<long long>(stream),
+                policy.onesweep.items_per_thread,
+                current_bit,
+                num_bits,
+                static_cast<int>(portion),
+                static_cast<int>(num_portions));
+#endif
+
+        auto onesweep_kernel = kernel_source.RadixSortOnesweepKernel();
+
+        if (const auto error = CubDebug(
+              launcher_factory(num_blocks, ONESWEEP_BLOCK_THREADS, 0, stream)
+                .doit(
+                  onesweep_kernel,
+                  d_lookback,
+                  d_ctrs + portion * num_passes + pass,
+                  portion < num_portions - 1 ? d_bins + ((portion + 1) * num_passes + pass) * RADIX_DIGITS : nullptr,
+                  d_bins + (portion * num_passes + pass) * RADIX_DIGITS,
+                  d_keys.Alternate(),
+                  d_keys.Current() + portion * PORTION_SIZE,
+                  d_values.Alternate(),
+                  d_values.Current() + portion * PORTION_SIZE,
+                  portion_num_items,
+                  current_bit,
+                  num_bits,
+                  decomposer)))
+        {
+          return error;
+        }
+
+        if (const auto error = CubDebug(detail::DebugSyncStream(stream)))
+        {
+          return error;
+        }
+      }
+
+      // use the temporary buffers if no overwrite is allowed
+      if (!is_overwrite_okay && pass == 0)
+      {
+        d_keys   = num_passes % 2 == 0 ? DoubleBuffer<KeyT>(d_keys_tmp, d_keys_tmp2)
+                                       : DoubleBuffer<KeyT>(d_keys_tmp2, d_keys_tmp);
+        d_values = num_passes % 2 == 0 ? DoubleBuffer<ValueT>(d_values_tmp, d_values_tmp2)
+                                       : DoubleBuffer<ValueT>(d_values_tmp2, d_values_tmp);
+      }
+      d_keys.selector ^= 1;
+      d_values.selector ^= 1;
+    }
+
+    return cudaSuccess;
+  }
+
+public:
   /**
    * @brief Invocation (run multiple digit passes)
    *
@@ -1104,6 +898,164 @@ public:
       detail::radix_sort::convert_policy(policy));
   }
 
+private:
+  template <typename UpsweepKernelT, typename ScanKernelT, typename DownsweepKernelT>
+  CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t __invoke_passes(
+    UpsweepKernelT upsweep_kernel,
+    UpsweepKernelT alt_upsweep_kernel,
+    ScanKernelT scan_kernel,
+    DownsweepKernelT downsweep_kernel,
+    DownsweepKernelT alt_downsweep_kernel,
+    const detail::radix_sort::radix_sort_policy& policy)
+  {
+    // Get device ordinal
+    int device_ordinal;
+    if (const auto error = CubDebug(cudaGetDevice(&device_ordinal)))
+    {
+      return error;
+    }
+
+    // Get SM count
+    int sm_count;
+    if (const auto error = CubDebug(cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device_ordinal)))
+    {
+      return error;
+    }
+
+    // Init regular and alternate-digit kernel configurations
+    PassConfig<UpsweepKernelT, ScanKernelT, DownsweepKernelT> pass_config, alt_pass_config;
+    if (const auto error = pass_config.__init_pass_config(
+          upsweep_kernel,
+          scan_kernel,
+          downsweep_kernel,
+          sm_count,
+          num_items,
+          policy.downsweep.radix_bits,
+          policy.upsweep,
+          policy.scan,
+          policy.downsweep,
+          launcher_factory))
+    {
+      return error;
+    }
+
+    if (const auto error = alt_pass_config.__init_pass_config(
+          alt_upsweep_kernel,
+          scan_kernel,
+          alt_downsweep_kernel,
+          sm_count,
+          num_items,
+          policy.downsweep.radix_bits,
+          policy.alt_upsweep,
+          policy.scan,
+          policy.alt_downsweep,
+          launcher_factory))
+    {
+      return error;
+    }
+
+    // Get maximum spine length
+    int max_grid_size = ::cuda::std::max(pass_config.max_downsweep_grid_size, alt_pass_config.max_downsweep_grid_size);
+    int spine_length  = (max_grid_size * pass_config.radix_digits) + pass_config.scan_config.tile_size;
+
+    // Temporary storage allocation requirements
+    void* allocations[3]       = {};
+    size_t allocation_sizes[3] = {
+      // bytes needed for privatized block digit histograms
+      spine_length * sizeof(OffsetT),
+
+      // bytes needed for 3rd keys buffer
+      (is_overwrite_okay) ? 0 : num_items * kernel_source.KeySize(),
+
+      // bytes needed for 3rd values buffer
+      (is_overwrite_okay || (KEYS_ONLY)) ? 0 : num_items * kernel_source.ValueSize(),
+    };
+
+    // Alias the temporary allocations from the single storage blob (or compute the necessary size of the blob)
+    if (const auto error =
+          CubDebug(detail::alias_temporaries(d_temp_storage, temp_storage_bytes, allocations, allocation_sizes)))
+    {
+      return error;
+    }
+
+    // Return if the caller is simply requesting the size of the storage allocation
+    if (d_temp_storage == nullptr)
+    {
+      return cudaSuccess;
+    }
+
+    // Pass planning.  Run passes of the alternate digit-size configuration until we have an even multiple of our
+    // preferred digit size
+    int num_bits           = end_bit - begin_bit;
+    int num_passes         = ::cuda::ceil_div(num_bits, pass_config.radix_bits);
+    bool is_num_passes_odd = num_passes & 1;
+    int max_alt_passes     = (num_passes * pass_config.radix_bits) - num_bits;
+    int alt_end_bit        = ::cuda::std::min(end_bit, begin_bit + (max_alt_passes * alt_pass_config.radix_bits));
+
+    // Alias the temporary storage allocations
+    OffsetT* d_spine = static_cast<OffsetT*>(allocations[0]);
+
+    DoubleBuffer<KeyT> d_keys_remaining_passes(
+      (is_overwrite_okay || is_num_passes_odd) ? d_keys.Alternate() : static_cast<KeyT*>(allocations[1]),
+      (is_overwrite_okay)   ? d_keys.Current()
+      : (is_num_passes_odd) ? static_cast<KeyT*>(allocations[1])
+                            : d_keys.Alternate());
+
+    DoubleBuffer<ValueT> d_values_remaining_passes(
+      (is_overwrite_okay || is_num_passes_odd) ? d_values.Alternate() : static_cast<ValueT*>(allocations[2]),
+      (is_overwrite_okay)   ? d_values.Current()
+      : (is_num_passes_odd) ? static_cast<ValueT*>(allocations[2])
+                            : d_values.Alternate());
+
+    // Run first pass, consuming from the input's current buffers
+    int current_bit = begin_bit;
+    if (const auto error = CubDebug(InvokePass(
+          d_keys.Current(),
+          d_keys_remaining_passes.Current(),
+          d_values.Current(),
+          d_values_remaining_passes.Current(),
+          d_spine,
+          spine_length,
+          current_bit,
+          (current_bit < alt_end_bit) ? alt_pass_config : pass_config)))
+    {
+      return error;
+    }
+
+    // Run remaining passes
+    while (current_bit < end_bit)
+    {
+      if (const auto error = CubDebug(InvokePass(
+            d_keys_remaining_passes.d_buffers[d_keys_remaining_passes.selector],
+            d_keys_remaining_passes.d_buffers[d_keys_remaining_passes.selector ^ 1],
+            d_values_remaining_passes.d_buffers[d_keys_remaining_passes.selector],
+            d_values_remaining_passes.d_buffers[d_keys_remaining_passes.selector ^ 1],
+            d_spine,
+            spine_length,
+            current_bit,
+            (current_bit < alt_end_bit) ? alt_pass_config : pass_config)))
+      {
+        return error;
+      }
+
+      // Invert selectors
+      d_keys_remaining_passes.selector ^= 1;
+      d_values_remaining_passes.selector ^= 1;
+    }
+
+    // Update selector
+    if (!is_overwrite_okay)
+    {
+      num_passes = 1; // Sorted data always ends up in the other vector
+    }
+
+    d_keys.selector   = (d_keys.selector + num_passes) & 1;
+    d_values.selector = (d_values.selector + num_passes) & 1;
+
+    return cudaSuccess;
+  }
+
+public:
   // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t InvokeCopy()
   {
@@ -1163,6 +1115,60 @@ public:
     });
   }
 
+private:
+  template <typename PolicyGetter>
+  CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(PolicyGetter policy_getter)
+  {
+    CUB_DETAIL_CONSTEXPR_ISH auto policy = policy_getter();
+
+    // Return if empty problem, or if no bits to sort and double-buffering is used
+    if (num_items == 0 || (begin_bit == end_bit && is_overwrite_okay))
+    {
+      if (d_temp_storage == nullptr)
+      {
+        temp_storage_bytes = 1;
+      }
+      return cudaSuccess;
+    }
+
+    // Check if simple copy suffices (is_overwrite_okay == false at this point)
+    if (begin_bit == end_bit)
+    {
+      bool has_uva = false;
+      if (const auto error = detail::HasUVA(has_uva))
+      {
+        return error;
+      }
+      if (has_uva)
+      {
+        return InvokeCopy();
+      }
+    }
+
+    // Force kernel code-generation in all compiler passes
+    if (num_items <= static_cast<OffsetT>(policy.single_tile.block_threads * policy.single_tile.items_per_thread))
+    {
+      // Small, single tile size
+      return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile);
+    }
+
+    if CUB_DETAIL_CONSTEXPR_ISH (policy.use_onesweep)
+    {
+      return __invoke_onesweep(policy);
+    }
+    else
+    {
+      return __invoke_passes(
+        kernel_source.RadixSortUpsweepKernel(),
+        kernel_source.RadixSortAltUpsweepKernel(),
+        kernel_source.DeviceRadixSortScanBinsKernel(),
+        kernel_source.RadixSortDownsweepKernel(),
+        kernel_source.RadixSortAltDownsweepKernel(),
+        policy);
+    }
+  }
+
+public:
   //------------------------------------------------------------------------------
   // Dispatch entrypoints
   //------------------------------------------------------------------------------
