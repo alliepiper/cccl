@@ -1118,7 +1118,6 @@ public:
     });
   }
 
-private:
   template <typename PolicyGetter>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(PolicyGetter policy_getter)
   {
@@ -1171,7 +1170,6 @@ private:
     }
   }
 
-public:
   //------------------------------------------------------------------------------
   // Dispatch entrypoints
   //------------------------------------------------------------------------------
