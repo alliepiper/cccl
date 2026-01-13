@@ -566,6 +566,9 @@ public:
       DownsweepPolicyT downsweep_policy      = {},
       KernelLauncherFactory launcher_factory = {})
     {
+      // FIXME(bgruber): we should actually convert upsweep_policy, scan_policy, and downsweep_policy, since they could
+      // be different from those inside policy. But this is already so far out of any supported scenario that I am
+      // willing to cut this corner.
       const auto p = detail::radix_sort::convert_policy(policy);
       __init_pass_config(
         upsweep_kernel,
