@@ -96,6 +96,7 @@ struct DeviceRadixSortKernelSource
   }
 };
 
+// TODO(bgruber): remove in CCCL 4.0 when we drop the radix sort dispatcher after publishing the tuning API
 template <typename LegacyActivePolicy>
 _CCCL_API constexpr auto convert_policy() -> radix_sort_policy
 {
@@ -180,6 +181,7 @@ _CCCL_API constexpr auto convert_policy() -> radix_sort_policy
     alt_segmented};
 }
 
+// TODO(bgruber): remove in CCCL 4.0 when we drop the radix sort dispatcher after publishing the tuning API
 template <typename LegacyActivePolicy>
 CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE constexpr auto convert_policy(RadixSortPolicyWrapper<LegacyActivePolicy> policy)
   -> radix_sort_policy
@@ -187,7 +189,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE constexpr auto convert_policy(RadixSortPo
   return convert_policy<LegacyActivePolicy>();
 }
 
-// TODO(bgruber): remove in CCCL 4.0
+// TODO(bgruber): remove in CCCL 4.0 when we drop the radix sort dispatcher after publishing the tuning API
 template <typename PolicyHub>
 struct policy_selector_from_hub
 {
@@ -222,7 +224,7 @@ struct policy_selector_from_hub
  *   Implementation detail, do not specify directly, requirements on the
  *   content of this type are subject to breaking change.
  */
-// TODO(bgruber): deprecate when we make the tuning API public
+// TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
 template <SortOrder Order,
           typename KeyT,
           typename ValueT,
@@ -775,6 +777,7 @@ public:
   // Constructor
   //------------------------------------------------------------------------------
 
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE DispatchRadixSort(
     void* d_temp_storage,
     size_t& temp_storage_bytes,
@@ -820,6 +823,7 @@ public:
    * @param[in] single_tile_kernel
    *   Kernel function pointer to parameterization of cub::DeviceRadixSortSingleTileKernel
    */
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   template <typename ActivePolicyT, typename SingleTileKernelT>
   CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t
   InvokeSingleTile(SingleTileKernelT single_tile_kernel, ActivePolicyT policy = {})
@@ -834,6 +838,7 @@ public:
   /**
    * Invoke a three-kernel sorting pass at the current bit.
    */
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   template <typename PassConfigT>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t InvokePass(
     const KeyT* d_keys_in,
@@ -953,6 +958,7 @@ public:
     return cudaSuccess;
   }
 
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   /// Pass configuration structure
   template <typename UpsweepKernelT, typename ScanKernelT, typename DownsweepKernelT>
   struct PassConfig
@@ -968,6 +974,7 @@ public:
     int max_downsweep_grid_size;
     GridEvenShare<OffsetT> even_share;
 
+    // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
     /// Initialize pass configuration
     template <typename ActivePolicyT, typename UpsweepPolicyT, typename ScanPolicyT, typename DownsweepPolicyT>
     CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t InitPassConfig(
@@ -1040,6 +1047,7 @@ public:
     }
   };
 
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   template <typename ActivePolicyT>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t InvokeOnesweep(ActivePolicyT policy = {})
   {
@@ -1077,6 +1085,7 @@ public:
    *   Alternate kernel function pointer to parameterization of
    *   cub::DeviceRadixSortDownsweepKernel
    */
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   template <typename ActivePolicyT, typename UpsweepKernelT, typename ScanKernelT, typename DownsweepKernelT>
   CUB_RUNTIME_FUNCTION _CCCL_VISIBILITY_HIDDEN _CCCL_FORCEINLINE cudaError_t InvokePasses(
     UpsweepKernelT upsweep_kernel,
@@ -1095,6 +1104,7 @@ public:
       detail::radix_sort::convert_policy(policy));
   }
 
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t InvokeCopy()
   {
     // is_overwrite_okay == false here
@@ -1143,6 +1153,7 @@ public:
     return cudaSuccess;
   }
 
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   /// Invocation
   template <typename ActivePolicyT>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t Invoke(ActivePolicyT = {})
@@ -1189,6 +1200,7 @@ public:
    * @param[in] stream
    *   CUDA stream to launch kernels within. Default is stream<sub>0</sub>.
    */
+  // TODO(bgruber): deprecate when we make the tuning API public and remove in CCCL 4.0
   template <typename MaxPolicyT = typename PolicyHub::MaxPolicy>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE static cudaError_t Dispatch(
     void* d_temp_storage,

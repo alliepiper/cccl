@@ -730,6 +730,8 @@ struct KernelConfig
   int tile_size{0};
   int sm_occupancy{0};
 
+  // TODO(bgruber): remove this function once all reduce and radix sort (segmented) algorithms have been ported to the
+  // new tuning API
   template <typename AgentPolicyT,
             typename KernelPtrT,
             typename LauncherFactory = CUB_DETAIL_DEFAULT_KERNEL_LAUNCHER_FACTORY>
