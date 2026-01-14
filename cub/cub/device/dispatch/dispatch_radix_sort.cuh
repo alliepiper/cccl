@@ -102,7 +102,10 @@ _CCCL_API constexpr auto convert_policy() -> radix_sort_policy
 {
   using active_policy = LegacyActivePolicy;
 
-  auto convert_downsweep_policy = []([[maybe_unused]] auto p) {
+  auto convert_downsweep_policy = [](auto p) {
+    // MSVC will error if we put a [[no_discard]] on the parameter p above:
+    //   C2187: syntax error: 'attribute specifier' was unexpected here
+    (void) p;
     using p_t = decltype(p);
     return radix_sort_downsweep_policy{
       p_t::BLOCK_THREADS,
