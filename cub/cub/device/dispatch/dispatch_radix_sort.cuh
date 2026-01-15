@@ -1124,7 +1124,12 @@ public:
   template <typename PolicyGetter>
   CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t __invoke(PolicyGetter policy_getter)
   {
+#if _CCCL_COMPILER(GCC, <, 8)
+    // GCC 7 fails to treat policy_getter() as a constant expression here; use a runtime branch instead.
+    auto policy = policy_getter();
+#else
     CUB_DETAIL_CONSTEXPR_ISH auto policy = policy_getter();
+#endif
 
     // Return if empty problem, or if no bits to sort and double-buffering is used
     if (num_items == 0 || (begin_bit == end_bit && is_overwrite_okay))
@@ -1157,7 +1162,11 @@ public:
       return __invoke_single_tile(kernel_source.RadixSortSingleTileKernel(), policy.single_tile);
     }
 
+#if _CCCL_COMPILER(GCC, <, 8)
+    if (policy.use_onesweep)
+#else
     if CUB_DETAIL_CONSTEXPR_ISH (policy.use_onesweep)
+#endif
     {
       return __invoke_onesweep(policy);
     }

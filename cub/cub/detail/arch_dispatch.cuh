@@ -29,11 +29,9 @@ namespace detail
 template <typename PolicySelector, ::cuda::arch_id LowestArchId>
 struct policy_getter_17
 {
-  PolicySelector policy_selector;
-
   _CCCL_API _CCCL_FORCEINLINE constexpr auto operator()() const
   {
-    return policy_selector(LowestArchId);
+    return PolicySelector{}(LowestArchId);
   }
 };
 
@@ -62,12 +60,25 @@ struct lowest_arch_resolver<ArchMult, ::cuda::std::integer_sequence<int, CudaArc
   using policy_t = decltype(PolicySelector{}(::cuda::arch_id{}));
 
   static constexpr ::cuda::arch_id all_arches[sizeof...(Is)] = {::cuda::arch_id{(CudaArches * ArchMult) / 10}...};
-  static constexpr policy_t all_policies[sizeof...(Is)]      = {PolicySelector{}(all_arches[Is])...};
+#  if _CCCL_COMPILER(GCC, <, 8)
+  // GCC 7 ICEs when constexpr-initializing arrays with PolicySelector calls.
+  _CCCL_API _CCCL_FORCEINLINE static constexpr auto policy_for(size_t i) -> policy_t
+  {
+    return PolicySelector{}(all_arches[i]);
+  }
+#  else
+  static constexpr policy_t all_policies[sizeof...(Is)] = {PolicySelector{}(all_arches[Is])...};
+
+  _CCCL_API _CCCL_FORCEINLINE static constexpr auto policy_for(size_t i) -> policy_t
+  {
+    return all_policies[i];
+  }
+#  endif
 
   _CCCL_API static constexpr auto find_lowest(size_t i) -> ::cuda::arch_id
   {
-    const auto& policy = all_policies[i];
-    while (i > 0 && policy == all_policies[i - 1])
+    const auto policy = policy_for(i);
+    while (i > 0 && policy == policy_for(i - 1))
     {
       --i;
     }
@@ -104,7 +115,7 @@ CUB_RUNTIME_FUNCTION _CCCL_FORCEINLINE cudaError_t dispatch_to_arch_list(
     lowest_arch_resolver<ArchMult, ::cuda::std::integer_sequence<int, CudaArches...>, PolicySelector, Is...>;
   (...,
    (device_arch == ::cuda::arch_id{(CudaArches * ArchMult) / 10}
-      ? (e = f(policy_getter_17<PolicySelector, resolver_t::lowest_arch_with_same_policy[Is]>{policy_selector}))
+      ? (e = f(policy_getter_17<PolicySelector, resolver_t::lowest_arch_with_same_policy[Is]>{}))
       : cudaSuccess));
 
 #  endif // if _CCCL_STD_VER >= 2020
