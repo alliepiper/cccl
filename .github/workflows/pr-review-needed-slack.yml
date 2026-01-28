@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: PR Review Needed Report
+
+on:
+  schedule:
+    - cron: "0 15 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  post-review-needed-report:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate report
+        id: pr_check
+        run: |
+          set -euo pipefail
+          output="$("./ci/util/pr_check.sh" "${GITHUB_REPOSITORY_OWNER}" "${GITHUB_REPOSITORY#*/}")"
+          {
+            echo "message<<'EOF'"
+            echo "${output}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Post to Slack
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_NOTIFIER_BOT_TOKEN }}
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_REVIEW }}
+          slack-message: |
+            *PRs needing review*
+            
+            ${{ steps.pr_check.outputs.message }}
