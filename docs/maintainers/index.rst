@@ -1,10 +1,12 @@
 Maintainer Docs
 ===============
 
-This section documents the policies and procedures to maintain and release artifacts from the CCCL repository.
+This section documents the infrastructure, policies, and procedures for
+maintaining the CCCL repository.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
+   infrastructure/index
    how_tos/index
    references/index

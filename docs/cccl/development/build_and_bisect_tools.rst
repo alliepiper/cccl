@@ -134,3 +134,10 @@ runner. Launch it from **Actions → Git Bisect → Run workflow**. Provide
 any desired runner label, refs, preset, targets, or launch arguments. The job
 log streams bisect progress, and the run's **Summary** page renders the final
 Markdown report with culprit commit, PR, reproduction steps, and more.
+
+See also
+--------
+
+- :doc:`/maintainers/infrastructure/ci_scripts` — CI scripts architecture
+- :doc:`/maintainers/how_tos/bisect_regression` — step-by-step bisect guide
+- :doc:`/maintainers/how_tos/reproduce_ci_failure` — reproducing CI failures locally

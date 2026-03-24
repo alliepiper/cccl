@@ -323,7 +323,7 @@ Ignore as trivial:
 
 ## Continuous Integration (CI)
 
-See `ci-overview.md` for detailed examples and troubleshooting guidance.
+See `docs/maintainers/infrastructure/ci_workflows.rst` for detailed architecture documentation and `CONTRIBUTING.md` for CI troubleshooting.
 
 CCCL's CI is built on GitHub Actions and relies on a dynamically generated job matrix plus several helper scripts.
 
@@ -404,7 +404,7 @@ pre-commit run --files <file1> <file2>
 
 * Validate changes with builds/tests; report results.
 * Run `pre-commit` before committing.
-* Review `CONTRIBUTING.md` and `ci-overview.md` before starting work.
+* Review `CONTRIBUTING.md` before starting work.
 
 ### Performance Tips
 
@@ -412,6 +412,47 @@ pre-commit run --files <file1> <file2>
 * Limit architectures to reduce compile time (e.g. `-arch "native"` or `"80"` if no GPU).
 * Build with Ninja for fast, parallel builds.
 
+---
+
+## Subdirectory Documentation
+
+Infrastructure directories have their own `AGENTS.md` files with directory-specific
+context, conventions, and key file tables:
+
+* `.github/AGENTS.md` — GitHub Actions workflows, CI dispatch, custom actions
+* `ci/AGENTS.md` — Build/test scripts, matrix.yaml, change detection
+* `ci/util/AGENTS.md` — Utility scripts, artifact system, workflow queries
+* `.devcontainer/AGENTS.md` — Container architecture, launch.sh, variants
+* `benchmarks/AGENTS.md` — Benchmark framework, scripts, analysis tools
+* `cmake/AGENTS.md` — CMake modules, presets, build configuration
+
+## Agent Skills
+
+Procedural step-by-step guides for common infrastructure tasks are available in
+`.agents/skills/`. Each skill covers a specific task with copy-paste commands:
+
+* `reproduce-ci-failure.md` — Reproduce a CI failure locally
+* `add-ci-matrix-job.md` — Add a new job to the CI matrix
+* `override-ci-matrix.md` — Temporarily override the PR CI matrix
+* `add-devcontainer.md` — Add a new devcontainer variant
+* `add-cmake-preset.md` — Add a new CMake preset
+* `run-benchmarks.md` — Run and analyze performance benchmarks
+* `bisect-regression.md` — Bisect a regression
+* `create-release.md` — Create a release
+
+## Detailed Infrastructure Documentation
+
+Comprehensive infrastructure guides are maintained under `docs/maintainers/infrastructure/`:
+
+* `developer_workflow.rst` — Pre-commit, testing patterns, doc builds
+* `devcontainers.rst` — Container architecture and usage
+* `cmake.rst` — Build system, presets, modules
+* `ci_workflows.rst` — CI pipeline, matrix, job generation, security
+* `ci_scripts.rst` — Build/test scripts, artifacts, workflow utilities
+* `benchmarking.rst` — Benchmark framework and SASS diffs
+* `release_and_versioning.rst` — Release process and version management
+
+How-to guides: `docs/maintainers/how_tos/`
 
 ---
 
@@ -419,7 +460,8 @@ pre-commit run --files <file1> <file2>
 
 ```
 cccl/
-├── .github/            # Workflows
+├── .agents/            # Agent skills and configuration
+├── .github/            # Workflows and CI actions
 ├── .devcontainer/      # Dev containers
 ├── libcudacxx/         # CUDA C++ Standard Library
 ├── cub/                # CUB primitives
@@ -428,6 +470,9 @@ cccl/
 ├── c/                  # C Parallel library
 ├── python/cuda_cccl/   # Python bindings
 ├── ci/                 # Build/test scripts
+├── cmake/              # CMake modules
+├── benchmarks/         # Benchmark framework
+├── docs/               # Documentation (Sphinx)
 ├── examples/           # Usage examples
 └── CMakePresets.json   # Preset configurations
 ```

@@ -253,8 +253,99 @@ You can skip these checks with `git commit --no-verify` or with the short versio
 ## Continuous Integration (CI)
 
 CCCL's CI pipeline tests across various CUDA versions, compilers, and GPU architectures.
-For external contributors, the CI pipeline will not begin until a maintainer leaves an `/ok to test` comment. For members of the NVIDIA GitHub enterprise, the CI pipeline will begin immediately.
-For a detailed overview of CCCL's CI, see [ci-overview.md](ci-overview.md).
+CI jobs use the same [development containers](.devcontainer/README.md) as local development, ensuring consistent environments.
+
+For detailed infrastructure documentation, see the [maintainer infrastructure guides](docs/maintainers/infrastructure/).
+
+### CI Triggering
+
+For external contributors, the CI pipeline will not begin until a maintainer leaves an `/ok to test [commit SHA]` comment.
+
+For internal NVIDIA contributors with [signed commits](#signed-commits-for-automatic-ci), CI runs automatically when commits are pushed.
+
+CCCL uses [NVIDIA's self-hosted action runners](https://docs.gha-runners.nvidia.com/runners/) for CI. For security, a [`copy-pr-bot`](https://docs.gha-runners.nvidia.com/onboarding/) copies PR code to a `pull-request/N` branch before running on the runners.
+
+### Matrix Testing
+
+CI tests are performed across a broad matrix of CUDA versions, compilers, GPU architectures, and operating systems. The exact combinations are defined in [`ci/matrix.yaml`](ci/matrix.yaml). Pull request CI runs typically spawn 250+ jobs.
+
+### Viewing CI Results
+
+The results of every CI job are summarized at the bottom of the PR page. Click "Details" next to each run for more information.
+
+![Summary of all CI jobs on PR page.](docs/images/pr-checks.png)
+
+### CI Commit Message Controls
+
+Tags appended to the commit summary (case-sensitive) control which CI jobs run:
+
+- `[skip-matrix]`: Skip all build/test jobs from `ci/matrix.yaml`. Docs, devcontainers, and third-party builds still run.
+- `[skip-vdc]`: Skip "Verify Devcontainer" jobs.
+- `[skip-docs]`: Skip documentation build/preview.
+- `[skip-third-party-testing]` (alias `[skip-tpt]`): Skip third-party canary builds (MatX, PyTorch, RAPIDS).
+- `[skip-matx]`, `[skip-pytorch]`, `[skip-rapids]`: Skip individual third-party builds.
+
+> **Warning:** All skip tags **block merging** until removed and a full CI run succeeds.
+
+Example: `git commit -m "README tidy-up [skip-matrix][skip-vdc][skip-docs][skip-tpt]"`
+
+### Temporarily Overriding the CI Matrix
+
+If a non-empty `override` workflow exists in `ci/matrix.yaml`, it replaces the `pull_request` matrix. This is useful for:
+
+- Testing changes specific to one compiler, OS, or GPU
+- Debugging nightly CI failures with only the failing jobs
+- Iterating on infrastructure changes with minimal job count
+
+```yaml
+workflows:
+  override:
+    - {jobs: ['build'], project: 'cudax', ctk: '12.0', std: 'all', cxx: ['msvc14.39', 'gcc10', 'clang14']}
+  pull_request:
+    # ... existing entries ...
+```
+
+> **Warning:** The override matrix **blocks merging**. Set it back to empty (not removed) before the final CI run.
+
+### Accelerating Builds with sccache
+
+CCCL's CI uses [`sccache`](https://github.com/mozilla/sccache) to cache compiler artifacts. Local builds inside [CCCL's Dev Containers](.devcontainer/README.md) can share the same cache. Follow the [GitHub Authentication](.devcontainer/README.md#optional-authenticate-with-github-for-sccache) guide to enable this.
+
+### Reproducing CI Failures Locally
+
+1. **Get the environment:** Find the CUDA version and host compiler from the CI log.
+2. **Launch the matching devcontainer:**
+   ```bash
+   .devcontainer/launch.sh -d --cuda 13.1 --host gcc14 --gpus all
+   ```
+3. **Run the build/test command** from the CI log:
+   ```bash
+   ./ci/build_cub.sh -cxx g++ -std 20 -arch "90"
+   ./ci/test_cub.sh -cxx g++ -std 20 -arch "90"
+   ```
+
+The CI failure summary includes a reproducer block with exact commands.
+
+![Example CI failure log with reproducer instructions](docs/images/repro_instructions.png)
+
+### Signed Commits for Automatic CI
+
+Internal NVIDIA contributors can enable automatic CI by signing commits with an SSH key:
+
+```bash
+git config --global gpg.format ssh
+git config --global user.signingKey ~/.ssh/YOUR_PUBLIC_KEY_FILE_HERE.pub
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+```
+
+Upload the key to your [GitHub Signing Keys](https://github.com/settings/keys):
+
+```bash
+gh ssh-key add ~/.ssh/YOUR_PUBLIC_KEY_FILE_HERE.pub --type signing
+```
+
+### Pre-commit CI
 
 There is a CI check for pre-commit, called [pre-commit.ci](pre-commit.ci).
 This enforces that all linters (such as `clang-format`) pass.
