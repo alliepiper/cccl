@@ -1,8 +1,14 @@
 ---
 name: cccl-ci-fetch-failures
-description: Fetch failed CI jobs from a CCCL PR or run ID. Returns TSV of job-id/name/grouping-hint. Dispatched as owl-gp-haiku by cccl-triage. System prompt in references/agent-prompt.md.
+description: Fetch failed CI jobs from a CCCL PR or run ID. Returns TSV of job-id/name/grouping-hint. Invoked by cccl-triage; full workflow in references/agent-prompt.md.
 ---
 
-Dispatch model: `owl-gp-haiku`. Full system prompt: `references/agent-prompt.md`.
+Fetch failed jobs for a PR or run; write a TSV for downstream clustering. Invoked by `cccl-triage`.
 
-Call inputs: `pr: <PR#>` or `run: <RUN_ID>`, `output: <tsv-path>`, `scratch: <dir>`, working directory.
+**Inputs** (from `cccl-triage` context):
+
+- `pr: <PR#>` or `run: <RUN_ID>` — selects the workflow run.
+- `output: <tsv-path>` — TSV destination.
+- `scratch: <dir>` — for raw API responses (nest under caller's sessionid).
+
+Follow `references/agent-prompt.md` for the full workflow.

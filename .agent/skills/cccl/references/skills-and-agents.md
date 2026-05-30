@@ -14,17 +14,6 @@ Key behaviors:
 - Invoke via the **Skill tool** with `skill: <name>`. Skills are not reentrant.
 - Entry skills (`cccl-*`) appear in slash autocomplete (`/cccl-` prefix). Detail skills (`cccl_detail-*`) do not.
 
-## Agent invocation mechanics
-
-Agents live at `.agent/agents/<name>.md`. Dispatch via the **Agent tool** with `subagent_type: <name>` and an
-explicit `model:` parameter — the per-call value overrides frontmatter. Model tier:
-
-- `haiku` — mechanical tasks: log parsing, SHA verification, JSON extraction.
-- `sonnet` — multi-file reasoning or judgment (e.g. generating override matrices).
-
-CCCL agents are leaf agents: non-interactive (no `AskUserQuestion`), no spawning subagents. User dialogue
-belongs in the calling skill.
-
 ## Entry-skill catalog
 
 | Skill                 | Purpose                                                                 |
@@ -68,13 +57,15 @@ Detail skills auto-load via description match. They do **not** appear in slash a
 | `cccl_detail-cpp-macros`          | `_CCCL_*` internal macros: compiler detection, visibility, ABI, diagnostics      |
 | `cccl_detail-devcontainer-matrix` | `make_devcontainers.sh`, 60+ container configs from `ci/matrix.yaml`, `verify-devcontainers.yml` |
 
-## Agent catalog
+## Helper-skill catalog
 
-| Agent                       | Model    | Purpose                                                            |
-|-----------------------------|----------|--------------------------------------------------------------------|
-| `cccl-ci-overrides`         | `sonnet` | Generate CI override matrix and skip-tag recommendations           |
-| `cccl-ci-fetch-failures`    | `haiku`  | Fetch and parse failed CI job logs; return structured failure list |
-| `cccl-ci-summarize-job-log` | `haiku`  | Summarize a single CI job log; return structured digest            |
+Helper skills are invoked by other skills, not directly by users.
+
+| Skill                       | Caller         | Purpose                                                       |
+|-----------------------------|----------------|---------------------------------------------------------------|
+| `cccl-ci-fetch-failures`    | `cccl-triage`  | Fetch and parse failed CI job list from a run                 |
+| `cccl-ci-summarize-job-log` | `cccl-triage`  | Summarize downloaded CI job logs; return digest per log       |
+| `cccl-ci-overrides`         | `cccl-triage`  | Generate CI override matrix and skip-tag recommendations      |
 
 ## Naming convention
 
@@ -88,5 +79,4 @@ abbreviate semantic content.
 
 - Skills: `.agent/skills/<name>/SKILL.md`
 - Skill references: `.agent/skills/<name>/references/*.md` (on-demand only; not auto-loaded)
-- Agents: `.agent/agents/<name>.md`
-- `.claude/skills` and `.claude/agents` are directory symlinks to `.agent/skills` and `.agent/agents` respectively
+- `.claude/skills` is a directory symlink to `.agent/skills`

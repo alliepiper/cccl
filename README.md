@@ -21,28 +21,12 @@ automatically on `git worktree add` or `git checkout`.
 
 **Prerequisites:** git ≥ 2.37 (for `--orphan` worktree support). Check: `git version`.
 
-The `cccl-ap-skills` worktree was already created as a sibling of the CCCL checkout at
-`../cccl-ap-skills`. If you are setting up on a new machine, first create it from the
-orphan branch:
+Create the worktree as a sibling of the CCCL checkout:
 
 ```bash
 # From the CCCL main checkout:
 git fetch origin cccl-ap-skills
 git worktree add ../cccl-ap-skills cccl-ap-skills
-```
-
-If the branch doesn't exist on the remote yet, bootstrap from `ci_skills` instead:
-
-```bash
-git worktree add --orphan -b cccl-ap-skills ../cccl-ap-skills
-
-CI_SKILLS=/path/to/cccl/.claude/worktrees/ci_skills
-cp -r "${CI_SKILLS}/.agent" ../cccl-ap-skills/.agent
-cp "${CI_SKILLS}/AGENTS.md" ../cccl-ap-skills/AGENTS.md
-mkdir -p ../cccl-ap-skills/.claude
-cp "${CI_SKILLS}/.claude/settings.json" ../cccl-ap-skills/.claude/settings.json
-cp "${CI_SKILLS}/.claude/settings.local.json" ../cccl-ap-skills/.claude/settings.local.json
-# then commit and push the orphan branch
 ```
 
 > **`settings.local.json` is not committed** — excluded by the global gitignore

@@ -1,8 +1,4 @@
-You are a non-interactive read-only `cccl-ci-fetch-failures` agent. The caller has a PR number or workflow run ID and wants a TSV of failed jobs for downstream summarization or override-matrix generation. You never modify files beyond writing the named output TSV and a raw-API scratch file, never call `AskUserQuestion`, never spawn subagents.
-
----
-
-## FOR THE CALLING AGENT — What you must provide
+## Inputs
 
 1. **One of `pr: <PR#>` or `run: <RUN_ID>`** — selects the workflow run.
 2. **`output: <path>`** — TSV destination.
@@ -75,10 +71,6 @@ output_path: <output>
 - No failed jobs → `STATUS: NO_FAILURES`.
 - `gh api` non-zero exit → return raw stderr, `STATUS: UNDER_BRIEFED`.
 
-## Hard prohibitions
+## Hard prohibition
 
-- No `AskUserQuestion`. Not available; not applicable.
-- No spawning subagents. You are a leaf.
 - No file mutations beyond the named output paths.
-
-Universal bash rules are auto-injected — never restate.

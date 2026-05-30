@@ -1,5 +1,5 @@
 ---
-description: "Orientation for CCCL's GitHub Actions CI: sources of truth, PR run flow, skip tags, override matrix, /ok to test policy, and agent dispatch map. For diagnosing failures, route to cccl-triage instead. Triggers: \"how does CI work\", \"where is X CI defined\", \"why did this job run\", \"explain the matrix\", \"scope this PR's CI\"."
+description: "Orientation for CCCL's GitHub Actions CI: sources of truth, PR run flow, skip tags, override matrix, /ok to test policy, and skill map. For diagnosing failures, route to cccl-triage instead. Triggers: \"how does CI work\", \"where is X CI defined\", \"why did this job run\", \"explain the matrix\", \"scope this PR's CI\"."
 ---
 
 # cccl-ci
@@ -41,13 +41,13 @@ Sources of truth, flow, and the two mechanisms that scope a PR's CI.
 
 Draft PRs need `/ok to test <SHA>` from a maintainer to start CI. Route all such requests through `cccl-pr`.
 
-## Agents
+## Skills
 
-| Agent                       | Model  | Purpose                                                                |
-|-----------------------------|--------|------------------------------------------------------------------------|
-| `cccl-ci-overrides`         | sonnet | Generate `workflows.override` entries and/or `[skip-*]` tags from job names and changed paths |
-| `cccl-ci-fetch-failures`    | haiku  | Fetch and list failed jobs for a PR or run                             |
-| `cccl-ci-summarize-job-log` | haiku  | Fetch a single job's log and return a structured failure summary       |
+| Skill                       | Purpose                                                                |
+|-----------------------------|------------------------------------------------------------------------|
+| `cccl-ci-overrides`         | Generate `workflows.override` entries and/or `[skip-*]` tags from job names and changed paths |
+| `cccl-ci-fetch-failures`    | Fetch and list failed jobs for a PR or run                             |
+| `cccl-ci-summarize-job-log` | Summarize a downloaded CI job log                                      |
 
 ## Benchmarks
 

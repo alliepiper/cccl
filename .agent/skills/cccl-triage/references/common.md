@@ -35,13 +35,13 @@ Collect all summaries before presenting Step 6 table. Group identical root-cause
 
 ## Override-matrix synthesis
 
-Dispatch `cccl-ci-overrides` with:
+Invoke `cccl-ci-overrides` with:
 
 - `failed_jobs:` — path to `failed_jobs.tsv`
 - `paths:` — list of files touched by the fix
 - `for_workflow:` — `pr` (default) or `nightly`
 
-The agent returns a YAML block suitable for `ci/matrix.yaml` `workflows.override` and a set
+The skill returns a YAML block suitable for `ci/matrix.yaml` `workflows.override` and a set
 of `[skip-*]` commit tags. Present both to the user via `cccl-clarify` before applying.
 
 Skip tags apply to the **last** commit of the series only. After CI passes, reset

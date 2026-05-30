@@ -25,7 +25,7 @@ Capture the run's numeric ID and the commit SHA that triggered it. Both are requ
 
 ## Step 2 — Fetch failures
 
-Dispatch `cccl-ci-fetch-failures` with the resolved run ID. The agent writes a TSV to
+Invoke `cccl-ci-fetch-failures` with the resolved run ID. The skill writes a TSV to
 `/tmp/claude/<sessionid>/triage/failed_jobs.tsv`: `(job-id, name, grouping-hint)` per row.
 
 Zero failures → report and offer to wait. If waiting, `ScheduleWakeup(delaySeconds=1200)`.
@@ -47,8 +47,8 @@ Works mid-run; prefer over `gh run view --log-failed`.
 
 ## Step 5 — Summarize
 
-Dispatch one `cccl-ci-summarize-job-log` agent per log, in parallel (haiku tier). Each returns
-5–10 lines. Collect summaries to `references/common.md §Log summary format` shape.
+Invoke `cccl-ci-summarize-job-log` with all representative log paths. The skill processes each
+log in sequence and returns a digest per log. Collect summaries to `references/common.md §Log summary format` shape.
 
 ## Step 6 — Present findings
 
@@ -82,7 +82,7 @@ Mode-specific. See `references/pr.md §Ship` or `references/nightly.md §Ship`.
 Common to both modes:
 
 - Per-file edits require approval via `cccl-clarify`.
-- Dispatch `cccl-ci-overrides` with `failed_jobs:` (TSV path) and `paths:` (edited files).
+- Invoke `cccl-ci-overrides` with `failed_jobs:` (TSV path) and `paths:` (edited files).
   Offer the YAML and tag set via `cccl-clarify`. Skip tags apply to the LAST commit only.
 - Commit via `cccl-commit`.
 

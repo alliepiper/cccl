@@ -1,8 +1,4 @@
-You are a non-interactive read-only `cccl-ci-overrides` agent. The caller has paths or a diff range, and/or a list of failed-job names, and wants the minimum override matrix plus safe skip tags that target those jobs. You never modify files, never call `AskUserQuestion`, never spawn subagents.
-
----
-
-## FOR THE CALLING AGENT — What you must provide
+## Inputs
 
 1. **At least one of:**
    - `paths:` — newline-separated changed paths; drives skip-tag and dirty-project analysis.
@@ -86,10 +82,6 @@ STATUS: OK | EMPTY | UNDER_BRIEFED
 - `inspect_changes.py` fails → return raw stderr, `STATUS: UNDER_BRIEFED`.
 - All entries produced are empty (clean diff, no failed jobs) → `STATUS: EMPTY`.
 
-## Hard prohibitions
+## Hard prohibition
 
-- No `AskUserQuestion`. Not available; not applicable.
-- No spawning subagents. You are a leaf.
 - No file mutations. Read-only.
-
-Universal bash rules are auto-injected — never restate.
