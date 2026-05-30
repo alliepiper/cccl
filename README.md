@@ -1,15 +1,17 @@
 # cccl-ap-skills
 
-Local-only agent skills and Claude Code configuration for the CCCL repository.
+Local-only skills and Claude Code configuration for the CCCL repository.
 Lives on an orphan branch of the CCCL repo — shares git infrastructure but no history with `main`.
 
 ## What this provides
 
-- **32 `cccl-*` and `cccl_detail-*` skills** covering CI, build, test, infra, triage, and more
-- **3 `cccl-ci-*` agents** for CI job analysis and overrides
+- **35 `cccl-*` and `cccl_detail-*` skills** covering CI, build, test, infra, triage, and more
+  - Includes `cccl-ci-fetch-failures`, `cccl-ci-overrides`, `cccl-ci-summarize-job-log` —
+    skills that store agent system prompts in `references/agent-prompt.md` for dispatch
+    by `cccl-triage` via `owl-gp-haiku` / `owl-gp-sonnet`.
 - **`AGENTS.md`** — the skill-aware project instructions that Claude Code loads at session start
 - **`settings.json`** — project-scope Claude Code permission allow-list (gh, git, grep, etc.)
-- **`settings.local.json`** — per-machine allow-list for skill and agent invocations
+- **`settings.local.json`** — per-machine allow-list for skill invocations (not committed; see below)
 
 When deployed, a `post-checkout` hook replaces the CCCL repo's committed skill stubs and
 config files with symlinks into this directory. All CCCL worktrees get the same skills
@@ -17,28 +19,35 @@ automatically on `git worktree add` or `git checkout`.
 
 ## First-time setup
 
-**Prerequisites:** git ≥ 2.37 (for `--orphan` worktree support). Check: `git --version`.
+**Prerequisites:** git ≥ 2.37 (for `--orphan` worktree support). Check: `git version`.
 
 The `cccl-ap-skills` worktree was already created as a sibling of the CCCL checkout at
-`../cccl-ap-skills`. If you are setting up on a new machine, first create it:
+`../cccl-ap-skills`. If you are setting up on a new machine, first create it from the
+orphan branch:
 
 ```bash
 # From the CCCL main checkout:
+git fetch origin cccl-ap-skills
+git worktree add ../cccl-ap-skills cccl-ap-skills
+```
+
+If the branch doesn't exist on the remote yet, bootstrap from `ci_skills` instead:
+
+```bash
 git worktree add --orphan -b cccl-ap-skills ../cccl-ap-skills
 
-# Populate from ci_skills (adjust source path if different):
 CI_SKILLS=/path/to/cccl/.claude/worktrees/ci_skills
 cp -r "${CI_SKILLS}/.agent" ../cccl-ap-skills/.agent
 cp "${CI_SKILLS}/AGENTS.md" ../cccl-ap-skills/AGENTS.md
 mkdir -p ../cccl-ap-skills/.claude
 cp "${CI_SKILLS}/.claude/settings.json" ../cccl-ap-skills/.claude/settings.json
 cp "${CI_SKILLS}/.claude/settings.local.json" ../cccl-ap-skills/.claude/settings.local.json
+# then commit and push the orphan branch
 ```
 
-> **Note:** `settings.local.json` is excluded from git by the global gitignore
+> **`settings.local.json` is not committed** — excluded by the global gitignore
 > (`**/.claude/settings.local.json`). Copy or create it manually on each machine.
-> If it is absent, `deploy.sh` skips the symlink and logs a warning — the project-scope
-> `settings.json` is still deployed.
+> If absent, `deploy.sh` skips that symlink and logs a warning; `settings.json` is still deployed.
 
 **Install the hook and deploy:**
 
@@ -49,8 +58,7 @@ cd ../cccl-ap-skills
 
 `setup.sh` does two things:
 1. Installs a `post-checkout` hook at `<cccl>/.git/hooks/post-checkout`. This hook runs
-   `deploy.sh` automatically whenever you do `git checkout` or `git worktree add` in any
-   CCCL worktree.
+   `deploy.sh` automatically on `git checkout` or `git worktree add` in any CCCL worktree.
 2. Runs `deploy.sh` in the main CCCL checkout immediately so you don't have to re-checkout.
 
 If a `post-checkout` hook already exists, the old file is backed up to `post-checkout.bak`.
@@ -77,12 +85,22 @@ For each CCCL worktree it is run in:
    `info/exclude` (so git never sees them), then symlinks them:
    - `.claude/settings.json` → `../cccl-ap-skills/.claude/settings.json`
    - `.claude/settings.local.json` → `../cccl-ap-skills/.claude/settings.local.json`
-     (skipped with a warning if the file already exists as a regular non-symlink file)
+     (skipped with a warning if it already exists as a regular file)
 
 ## Updating skills
 
 Edit files directly in `cccl-ap-skills/`. Changes are visible immediately in all deployed
 worktrees via symlinks — no re-deploy needed for content changes.
+
+**Committing changes to `.agent/` requires `git add -f`** — the repo-wide `info/exclude`
+(written by `deploy.sh` for CCCL worktrees) lists `.agent` as an ignore pattern, which
+affects this orphan-branch worktree too:
+
+```bash
+git add -f .agent/skills/my-skill/
+git add README.md deploy.sh   # other paths commit normally
+git commit -m "..."
+```
 
 If you add new top-level files to `.claude/` that need symlinking, run `deploy.sh` manually
 in each worktree (or re-checkout the branch to trigger the hook).
@@ -128,8 +146,6 @@ git checkout -- \
 ## Undo (remove the hook)
 
 ```bash
-rm "$(git rev-parse --git-common-dir)/../.git/hooks/post-checkout"
-# or:
 rm /path/to/cccl/.git/hooks/post-checkout
 ```
 
@@ -137,10 +153,13 @@ New worktrees created after removing the hook will not be auto-deployed.
 
 ## Notes
 
-- The hook scope-guards against the `cccl-ap-skills` orphan branch itself (detected via
+- The hook scope-guards against the `cccl-ap-skills` orphan branch (detected via
   `git merge-base main HEAD` failing), so `git worktree add --orphan` operations are unaffected.
 - `--skip-worktree` flags live in each worktree's index and do not propagate to other worktrees.
 - Per-worktree `info/exclude` entries live under `<cccl>/.git/worktrees/<name>/info/exclude` and
   are cleaned up by `git worktree prune` when a worktree is removed.
 - If `.claude/settings.local.json` was not symlinked (pre-existing regular file warning), the
   deployed worktree uses only the project-scope `settings.json`. Merge or replace manually.
+- `deploy.sh` also adds `.agent` and `.claude/skills` to the main checkout's `info/exclude`
+  (the common git dir, so it applies repo-wide). This is what requires `git add -f` here.
+</thinking>
