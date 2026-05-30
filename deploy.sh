@@ -50,6 +50,9 @@ _symlink "${SKILLS_ROOT}/.agent/skills" .claude/skills -rf
 # ─── 2. New (untracked) paths: add to info/exclude, then symlink ───────────────
 #
 # info/exclude is git's per-worktree gitignore that lives outside the tree.
+# Symlinks replacing directories (like .agent, .claude/skills) also need
+# info/exclude entries — --skip-worktree hides their contents from git's index
+# comparison, but not the symlinks themselves from untracked-file scanning.
 INFO_EXCLUDE="${GIT_DIR}/info/exclude"
 mkdir -p "${GIT_DIR}/info"
 touch "$INFO_EXCLUDE"
@@ -72,6 +75,10 @@ _new_symlink() {
     rm -f "$path" 2>/dev/null || true
     ln -s "$target" "$path"
 }
+
+# Exclude the directory-replacing symlinks from untracked-file scanning.
+grep -qxF ".agent" "$INFO_EXCLUDE" || echo ".agent" >> "$INFO_EXCLUDE"
+grep -qxF ".claude/skills" "$INFO_EXCLUDE" || echo ".claude/skills" >> "$INFO_EXCLUDE"
 
 _new_symlink ".claude/settings.json"       .claude/settings.json       "${SKILLS_ROOT}/.claude/settings.json"
 _new_symlink ".claude/settings.local.json" .claude/settings.local.json "${SKILLS_ROOT}/.claude/settings.local.json"
