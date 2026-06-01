@@ -5,15 +5,16 @@ Feel free to pick and harvest for your own nest.
 
 Warnings:
 
-- These are agent written with light human review for accuracy.
+- **The setup / deploy scripts are NOT intended for general use**. Read and understand carefully before using. Notably:
+  - These modify all future cccl worktrees and edit config under .git (to hide the symlink shims from git's index).
+  - These do *not* clean up after themselves, and cannot be undone with a basic git worktree reset.
+  - I suggest copying individual skills to user-scope, or setting up similar shims that match your workflow.
+- These are a work in progress living-document. They are not polished or perfect, but "good 'nuff" for me.
+- These skills/prompts are agent written with light human review for accuracy.
 - They may be outdated, as they live separately from the repo.
 - I tried to avoid this as much as possible, but they undoubtedly encode some of my opinions and preferences.
-- The setup / deploy scripts are NOT polished for general use. Read and understand carefully before using. Notably:
-  - These modify all cccl worktrees and edit config under .git (to hide the symlink shims from git's index).
-  - These do *not* clean up after themselves, and cannot be undone with a basic git worktree reset.
-  - I suggest installing these to a user-scope skillset, or setting up similar shims that match your workflow.
 
-AI wrote the rest of this, treat it as such.
+AI wrote the rest of this doc, treat it as such. Has some pointers to what the shims do and maybe how to uninstall them (unverified).
 
 ---
 

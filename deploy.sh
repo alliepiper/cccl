@@ -4,6 +4,35 @@
 set -euo pipefail
 
 SKILLS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ─── Safety guard ──────────────────────────────────────────────────────────────
+if [[ "${1:-}" != "--i-know-what-im-doing" ]]; then
+    echo "" >&2
+    echo "################################################################################" >&2
+    echo "##                                                                            ##" >&2
+    echo "##  !!! FATAL: DO NOT RUN THIS WITHOUT READING THE README FIRST !!!         ##" >&2
+    echo "##                                                                            ##" >&2
+    echo "################################################################################" >&2
+    echo "" >&2
+    echo "  deploy.sh makes HARD-TO-UNDO changes to your CCCL checkout:" >&2
+    echo "" >&2
+    echo "    - Replaces AGENTS.md, CLAUDE.md, .agent/, .claude/skills/ with symlinks" >&2
+    echo "    - Marks those paths --skip-worktree in each worktree's git index" >&2
+    echo "    - Edits each worktree's info/exclude" >&2
+    echo "    - Cannot be reversed with 'git restore' or a worktree reset" >&2
+    echo "" >&2
+    echo "  Full notes (read this first):" >&2
+    echo "  ${SKILLS_ROOT}/README.md" >&2
+    echo "" >&2
+    echo "  If you have read the README and accept the consequences, re-run with:" >&2
+    echo "    $(basename "$0") --i-know-what-im-doing" >&2
+    echo "" >&2
+    echo "################################################################################" >&2
+    echo "" >&2
+    exit 1
+fi
+shift
+
 WORKTREE_ROOT="$(git rev-parse --show-toplevel)"
 GIT_DIR="$(git rev-parse --absolute-git-dir)"
 
