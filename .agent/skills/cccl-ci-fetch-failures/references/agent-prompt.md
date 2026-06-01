@@ -11,10 +11,50 @@ Missing any → return `under-briefed: <what's missing>`.
 
 ### 1. Resolve run ID
 
-If `pr:` given:
-- `gh pr view <PR#> --repo NVIDIA/cccl --json headRefName,headRefOid` → `BRANCH`, `HEAD_SHA`.
-- `gh run list --repo NVIDIA/cccl --branch <BRANCH> --limit 5 --json databaseId,headSha,conclusion` → pick the latest entry where `headSha == HEAD_SHA`. No match → `STATUS: UNDER_BRIEFED, reason: no_run_for_head`.
-- `RUN_ID = databaseId`.
+**PR mode (`pr:` given):**
+
+CCCL PRs run CI on the copy-pr-bot shadow branch `pull-request/<PR#>`, not on the feature
+branch. `gh run list --branch <feature-branch>` returns only metadata workflows — do not use
+it to find the CI run.
+
+Step 1: Get HEAD SHA.
+```
+gh pr view <PR#> --repo NVIDIA/cccl --json headRefOid
+```
+Extract `headRefOid` as `HEAD_SHA`.
+
+Step 2: Find the CI check run.
+```
+gh api "repos/NVIDIA/cccl/commits/<HEAD_SHA>/check-runs?per_page=100" > <scratch>/check_runs.json
+```
+Probe structure: `jq 'keys' <scratch>/check_runs.json` (expect `check_runs` array + `total_count`).
+
+Step 3: Extract the run ID. Find the check run with `name == "CI"`. Prefer by conclusion:
+`failure` > `action_required` > `in_progress` (null) > `success`. Among ties, take latest
+`started_at`. The run ID is in `html_url` (format `.../runs/<RUN_ID>/jobs/<JOB_ID>`):
+```
+jq -r '
+  .check_runs
+  | map(select(.name == "CI"))
+  | sort_by(.started_at) | reverse
+  | sort_by(
+      if   .conclusion == "failure"         then 0
+      elif .conclusion == "action_required" then 1
+      elif .conclusion == null              then 2
+      elif .conclusion == "success"         then 3
+      else 4 end)
+  | .[0].html_url
+' <scratch>/check_runs.json
+```
+Split on `/runs/`, take index 1, split on `/`, take index 0 → `RUN_ID`.
+
+**Fallback** (no "CI" check found, or API failure):
+```
+gh run list --repo NVIDIA/cccl --branch pull-request/<PR_NUMBER> --json databaseId,conclusion --limit 5
+```
+Pick latest `conclusion == "failure"`, or latest overall. `RUN_ID = databaseId`.
+
+**Run mode (`run:` given):** `RUN_ID = <run>` directly — skip to step 2.
 
 Avoid `gh pr view --json statusCheckRollup` — returns 100k+ tokens on CCCL PRs.
 
