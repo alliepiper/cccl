@@ -26,29 +26,57 @@ gh api repos/NVIDIA/cccl/actions/runs/<RUN_ID>/jobs?per_page=100 --paginate > <s
 
 `--paginate` concatenates objects; subsequent `jq` needs `-s`.
 
-### 3. Extract failures
+### 3. Extract failures and append grouping hints
+
+Use a single `jq` query that extracts failures and synthesizes the
+`<toolchain>|<project>|<variant>` grouping hint from the name field.
+First probe structure: `Read` the first few lines of `jobs_raw.json`
+(or `jq 'keys' <scratch>/jobs_raw.json`) to confirm the schema before
+writing the extraction. If the file is very large, dispatch a subagent.
 
 ```
-jq -s -r '[.[].jobs[] | select(.conclusion == "failure")] | .[] | [.id, .name] | @tsv' \
-   <scratch>/jobs_raw.json > <scratch>/failed_jobs_raw.tsv
+jq -s -r '
+  [.[].jobs[] | select(.conclusion == "failure")] | .[] |
+  [
+    (.id | tostring),
+    .name,
+    (
+      (.name |
+        if test("\\[CTK")
+        then capture("\\[(?<ctk>CTK[\\d.]+)\\s+(?<comp>[^C][^\\]]*?)\\s+C\\+\\+(?<std>\\d+)\\]") |
+             "\(.ctk) \(.comp) C++\(.std)"
+        else "unknown"
+        end
+      ) + "|" +
+      (if   (.name | test("libcu\\+\\+|libcudacxx")) then "libcudacxx"
+       elif (.name | test("[Tt]hrust"))              then "Thrust"
+       elif (.name | test("[Cc][Uu][Bb]"))           then "CUB"
+       elif (.name | test("[Cc]udax"))               then "cudax"
+       elif (.name | test("[Pp]ython"))              then "Python"
+       else "unknown" end) + "|" +
+      (if   (.name | test("[Bb]uild"))              then "Build"
+       elif (.name | test("[Tt]est"))               then "Test"
+       elif (.name | test("HostLaunch"))            then "HostLaunch"
+       elif (.name | test("DeviceLaunch"))          then "DeviceLaunch"
+       elif (.name | test("TestNoLaunch"))          then "TestNoLaunch"
+       else "unknown" end)
+    )
+  ] | @tsv
+' <scratch>/jobs_raw.json > <output>
 ```
 
-Empty → `STATUS: NO_FAILURES`. Write an empty file at `<output>`.
+Empty `<output>` → `STATUS: NO_FAILURES`.
 
-### 4. Append grouping hints
+**Never write a Python script or bash helper script to parse or
+transform data.** Use `jq` for JSON and `awk`/`sed -n` for
+structured text — both are allow-listed. Process data directly
+with these tools, not through opaque generated scripts.
 
-Per row, parse the name and append a tab-separated `<toolchain>|<project>|<variant>`:
-- Toolchain: `[CTK<X> <COMPILER><VER> C++<STD>]` substring.
-- Project: CUB / libcudacxx / Thrust / cudax / Python.
-- Variant: Build / Test / HostLaunch / DeviceLaunch / TestNoLaunch / etc.
-
-Example row:
+Example output row:
 
 ```
 74849038365	[CTK13.2 GCC15 C++20] cudax TestNoLaunch(amd64)	CTK13.2 GCC15 C++20|cudax|TestNoLaunch
 ```
-
-Write to `<output>`.
 
 ## Output
 

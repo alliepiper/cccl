@@ -1,7 +1,21 @@
 # cccl-ap-skills
 
-Local-only skills and Claude Code configuration for the CCCL repository.
-Lives on an orphan branch of the CCCL repo — shares git infrastructure but no history with `main`.
+Collection of agent skills for cccl that I found useful.
+Feel free to pick and harvest for your own nest.
+
+Warnings:
+
+- These are agent written with light human review for accuracy.
+- They may be outdated, as they live separately from the repo.
+- I tried to avoid this as much as possible, but they undoubtedly encode some of my opinions and preferences.
+- The setup / deploy scripts are NOT polished for general use. Read and understand carefully before using. Notably:
+  - These modify all cccl worktrees and edit config under .git (to hide the symlink shims from git's index).
+  - These do *not* clean up after themselves, and cannot be undone with a basic git worktree reset.
+  - I suggest installing these to a user-scope skillset, or setting up similar shims that match your workflow.
+
+AI wrote the rest of this, treat it as such.
+
+---
 
 ## What this provides
 
